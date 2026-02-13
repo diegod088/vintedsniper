@@ -114,9 +114,14 @@ export class VintedAPI {
       await page.setViewport({ width: 1366, height: 768 });
 
       // Cargar cookies
-      const cookies = JSON.parse(fs.readFileSync(config.COOKIE_FILE, 'utf8'));
-      await page.setCookie(...cookies);
-      console.log(`🍪 Cargadas ${cookies.length} cookies desde ${config.COOKIE_FILE}`);
+      const cookies = this.cookieManager.load();
+      if (cookies.length > 0) {
+        const puppeteerCookies = this.cookieManager.toPuppeteerCookies(cookies);
+        await page.setCookie(...puppeteerCookies);
+        console.log(`🍪 Cookies cargadas: ${cookies.length}`);
+      } else {
+        console.log(`⚠️ No se encontraron cookies en ${config.COOKIE_FILE}. Continuando sin sesión.`);
+      }
 
       // Navegar a la página con timeout aumentado y reintentos
       const searchUrl = `${this.baseURL}/catalog?search_text=${encodeURIComponent(keyword)}&order=newest_first`;

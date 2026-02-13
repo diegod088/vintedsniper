@@ -173,10 +173,13 @@ export class SniperBot {
             continue;
           }
 
-          // Enviar notificación a Telegram
+          // Enviar notificación a Telegram (reutilizando browser para detalles)
           try {
-            await this.telegram.sendItemNotification(item);
-            logger.logTelegramSent(item, true);
+            const sharedBrowser = await this.vintedAPI.getBrowser();
+            const sent = await this.telegram.sendItemNotification(item, sharedBrowser);
+            if (sent) {
+              logger.logTelegramSent(item, true);
+            }
           } catch (error: any) {
             logger.error(`Error enviando notificación Telegram`, error, 'TELEGRAM');
             logger.logTelegramSent(item, false);
@@ -232,7 +235,8 @@ export class SniperBot {
     this.isRunning = true;
 
     // Iniciar el panel web
-    this.webPanel.start(3001);
+    const port = process.env.PORT ? parseInt(process.env.PORT) : 3001;
+    this.webPanel.start(port);
 
     logger.info('Bot iniciado', {
       version: '2.0',

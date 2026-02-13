@@ -3,13 +3,38 @@ FROM node:18-slim AS builder
 
 WORKDIR /app
 
-# Install dependencies for Puppeteer
+# Install dependencies for Puppeteer and build tools
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     ca-certificates \
     fonts-liberation \
-    libappindicator3-1 \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
+COPY package*.json tsconfig.json ./
+
+# Install dependencies (no canvas anymore)
+RUN npm ci
+
+# Copy source code
+COPY src/ ./src/
+
+# Build TypeScript
+RUN npm run build
+
+# Stage 2: Production
+FROM node:18-slim
+
+WORKDIR /app
+
+# Install Puppeteer dependencies for Debian Slim
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    ca-certificates \
+    fonts-liberation \
     libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
@@ -47,37 +72,6 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
-COPY package*.json tsconfig.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
-COPY src/ ./src/
-
-# Build TypeScript
-RUN npm run build
-
-# Stage 2: Production
-FROM node:18-alpine
-
-WORKDIR /app
-
-# Install Chromium for Puppeteer
-RUN apk add --no-cache \
-    chromium \
-    nss \
-    freetype \
-    harfbuzz \
-    ca-certificates \
-    ttf-freefont \
-    && rm -rf /var/cache/apk/*
-
-# Tell Puppeteer to use system Chromium
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-
-# Copy package files
 COPY package*.json ./
 
 # Install production dependencies only
@@ -87,10 +81,17 @@ RUN npm ci --only=production
 COPY --from=builder /app/dist ./dist/
 
 # Create directories for cookies and logs
-RUN mkdir -p cookies logs
+RUN mkdir -p cookies logs data && chmod 777 cookies logs data
+
+# Configure Puppeteer
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
 
 # Run as non-root user
-RUN adduser -D botuser && chown -R botuser:botuser /app
+RUN groupadd -r botuser && useradd -r -g botuser -G audio,video botuser \
+    && mkdir -p /home/botuser/Downloads \
+    && chown -R botuser:botuser /home/botuser \
+    && chown -R botuser:botuser /app
+
 USER botuser
 
 # Start the bot

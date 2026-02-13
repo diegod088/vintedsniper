@@ -54,7 +54,7 @@ export class VintedAPI {
     logger.info('Filtros avanzados inicializados', configToUse, 'FILTERS');
   }
 
-  private async getBrowser(): Promise<Browser> {
+  public async getBrowser(): Promise<Browser> {
     if (this.browser) {
       try {
         // Verificar si el browser sigue vivo

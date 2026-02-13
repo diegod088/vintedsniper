@@ -27,7 +27,9 @@ WORKDIR /app
 # Essential Puppeteer environment
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
-    NODE_ENV=production
+    NODE_ENV=production \
+    HOME=/tmp \
+    XDG_CONFIG_HOME=/tmp
 
 # Install Chromium and system dependencies efficiently
 RUN apt-get update && apt-get install -y \

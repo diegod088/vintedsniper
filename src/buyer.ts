@@ -37,14 +37,15 @@ export class VintedBuyer {
       '--disable-breakpad',
       '--single-process',
       '--use-gl=swiftshader',
-      '--crash-dumps-dir=/app/logs'
+      '--crash-dumps-dir=/tmp/crash_dumps'
     ];
 
     console.log(`🚀 Lanzando [Buyer] con args: ${args.join(' ')}`);
 
     const browser = await puppeteer.launch({
-      headless: true,
+      headless: 'new',
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
+      userDataDir: '/tmp/puppeteer_user_data_buyer',
       args,
     });
 

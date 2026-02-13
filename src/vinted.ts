@@ -81,14 +81,15 @@ export class VintedAPI {
       '--disable-breakpad',
       '--single-process',
       '--use-gl=swiftshader',
-      '--crash-dumps-dir=/app/logs'
+      '--crash-dumps-dir=/tmp/crash_dumps'
     ];
 
     console.log(`🚀 Lanzando browser con args: ${args.join(' ')}`);
 
     this.browser = await puppeteer.launch({
-      headless: true, // Cambiando a true tradicional para probar
+      headless: 'new', // Volviendo a 'new' que es más moderno
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
+      userDataDir: '/tmp/puppeteer_user_data',
       args
     });
     return this.browser;

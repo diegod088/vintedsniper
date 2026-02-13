@@ -10,6 +10,7 @@ services:
     volumes:
       - ./cookies:/app/cookies
       - ./logs:/app/logs
+      - ./data:/app/data
       - ./seen.json:/app/seen.json
     environment:
       - NODE_ENV=production

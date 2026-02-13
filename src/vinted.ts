@@ -346,14 +346,11 @@ export class VintedAPI {
                     // Solo eliminar parámetros después de ?, no truncar la URL
                     let cleanUrl = photoUrl.split('?')[0];
 
-                    // CRÍTICO: Asegurar que la URL tenga extensión de archivo
-                    // Si la URL no termina en .webp, .jpg, .jpeg o .png, añadir .webp
-                    if (!cleanUrl.match(/\.(webp|jpg|jpeg|png)$/i)) {
-                      console.log(`     ⚠️ URL sin extensión detectada: ${cleanUrl}`);
-                      // Vinted usa principalmente .webp
-                      cleanUrl = cleanUrl + '.webp';
-                      console.log(`     ✅ Extensión .webp añadida: ${cleanUrl}`);
-                    }
+                    // CRÍTICO: No forzar extensión .webp si no está presente. 
+                    // Muchas URLs de Vinted ya vienen correctas o redirigen bien.
+                    // Solo limpiar parámetros extra.
+
+                    // if (!cleanUrl.match(/\.(webp|jpg|jpeg|png)$/i)) { ... } // DISABLED
 
                     console.log(`     📸 URL limpia: ${cleanUrl}`);
                     console.log(`     📸 Validación: vinted.net=${cleanUrl.includes('vinted.net')}, images=${cleanUrl.includes('images')}, length=${cleanUrl.length}`);

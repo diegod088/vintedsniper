@@ -3,6 +3,7 @@ import { Browser, Page } from 'puppeteer';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import fs from 'fs';
 import path from 'path';
+import axios from 'axios';
 import { config } from './config';
 import { handleCookieConsent } from './browser-helper';
 
@@ -64,20 +65,38 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
     // Extraer TODAS las URLs de imágenes
     imageUrls = await page.evaluate(() => {
       const urls = new Set<string>();
+
+      // 1. Selectores específicos de Vinted (actualizados)
       const vintedSelectors = [
         '.item-photo img', '.item-photos img', '[data-testid="item-photo"] img',
         '[data-testid="item-photos"] img', '.ItemBox img', '.details-list img',
-        'img[alt*="photo"]', 'img[alt*="Photo"]'
+        'img[alt*="photo"]', 'img[alt*="Photo"]', 'img[itemprop="image"]',
+        '.item-description img', '.user-items img'
       ];
 
       vintedSelectors.forEach(selector => {
         document.querySelectorAll(selector).forEach((img: any) => {
-          const src = img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy');
-          if (src && src.includes('vinted.net') && src.length > 50) {
+          // Intentar obtener la mejor resolución posible
+          const src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.src;
+          if (src && src.length > 50) {
             urls.add(src.split('?')[0]);
           }
         });
       });
+
+      // 2. Si no encontramos nada, buscar en TODAS las imágenes grandes
+      if (urls.size === 0) {
+        document.querySelectorAll('img').forEach((img: any) => {
+          const src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.src;
+          // Filtrar iconos y avatares por tamaño o URL sospechosa
+          if (src && src.length > 50 && !src.includes('avatar') && !src.includes('icon') && !src.includes('placeholder')) {
+            if (img.naturalWidth > 200 || src.includes('f800') || src.includes('large')) {
+              urls.add(src.split('?')[0]);
+            }
+          }
+        });
+      }
+
       return Array.from(urls);
     });
 
@@ -236,6 +255,32 @@ export async function downloadImageWithPuppeteer(url: string, existingBrowser?: 
   }
 }
 
+export async function downloadImageWithAxios(url: string): Promise<Buffer | null> {
+  try {
+    const response = await axios.get(url, {
+      responseType: 'arraybuffer',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://www.vinted.it/'
+      },
+      timeout: 10000
+    });
+    if (response.status === 200) {
+      return Buffer.from(response.data);
+    }
+    return null;
+  } catch (error: any) {
+    console.log(`⚠️ Error descarga Axios (${url}): ${error.message}`);
+    return null;
+  }
+}
+
 export async function downloadImageWithAllMethods(originalUrl: string, existingBrowser?: Browser): Promise<Buffer | null> {
+  // 1. Intentar con Axios (más rápido)
+  const axiosBuffer = await downloadImageWithAxios(originalUrl);
+  if (axiosBuffer) return axiosBuffer;
+
+  // 2. Intentar con Puppeteer (más lento, pero maneja JS/cookies)
+  console.log('🔄 Fallback a Puppeteer para descarga...');
   return await downloadImageWithPuppeteer(originalUrl, existingBrowser);
 }

@@ -1,0 +1,42 @@
+{
+  "name": "vinted-sniper-telebot",
+  "version": "1.0.0",
+  "description": "Bot sniper para Vinted con autocompra y notificaciones Telegram",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "nodemon --exec ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "login": "ts-node src/quick-login.ts",
+    "test:images": "ts-node src/test-images.ts"
+  },
+  "keywords": [
+    "vinted",
+    "bot",
+    "sniper",
+    "telegram",
+    "autobuy"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.2",
+    "canvas": "^3.2.1",
+    "cors": "^2.8.6",
+    "dotenv": "^16.3.1",
+    "express": "^5.2.1",
+    "form-data": "^4.0.0",
+    "puppeteer": "^21.6.1",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.10.4",
+    "nodemon": "^3.0.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}

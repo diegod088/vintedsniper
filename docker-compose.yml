@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    container_name: vinted-sniper-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./cookies:/app/cookies
+      - ./logs:/app/logs
+      - ./seen.json:/app/seen.json
+    environment:
+      - NODE_ENV=production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

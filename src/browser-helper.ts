@@ -1,0 +1,59 @@
+import { Page } from 'puppeteer';
+
+export async function handleCookieConsent(page: Page): Promise<void> {
+    try {
+        // Selectores comunes para popups de cookies en Vinted (OneTrust y otros)
+        const cookieSelectors = [
+            '#onetrust-accept-btn-handler', // Botón "Aceptar todo" de OneTrust
+            '[data-testid="domain-banner-accept-all"]', // Banner genérico de Vinted
+            'button#onetrust-accept-btn-handler',
+            'button[id*="onetrust-accept"]',
+            // Selectores por texto (menos robustos pero útiles como fallback)
+            '//button[contains(text(), "Accetta")]',
+            '//button[contains(text(), "Accept")]',
+            '//button[contains(text(), "Aceptar")]',
+            '//button[contains(text(), "Tout accepter")]'
+        ];
+
+        console.log('🍪 Buscando popup de cookies...');
+
+        // Intentar encontrar y hacer click en alguno de los selectores
+        for (const selector of cookieSelectors) {
+            try {
+                if (selector.startsWith('//')) {
+                    // Selector XPath
+                    const elements = await page.$x(selector);
+                    if (elements.length > 0) {
+                        const element = elements[0] as any;
+                        if (await element.isIntersectingViewport()) {
+                            await element.click();
+                            console.log(`✅ Cookies aceptadas usando XPath: ${selector}`);
+                            await page.waitForTimeout(1000); // Esperar a que desaparezca
+                            return;
+                        }
+                    }
+                } else {
+                    // Selector CSS
+                    const element = await page.$(selector);
+                    if (element) {
+                        // Verificar visibilidad antes de clickar
+                        const isVisible = await element.isIntersectingViewport();
+                        if (isVisible) {
+                            await element.click();
+                            console.log(`✅ Cookies aceptadas usando selector: ${selector}`);
+                            await page.waitForTimeout(1000); // Esperar a que desaparezca
+                            return;
+                        }
+                    }
+                }
+            } catch (e) {
+                // Ignorar errores individuales por selector
+            }
+        }
+
+        console.log('ℹ️ No se detectó popup de cookies o ya fue aceptado.');
+
+    } catch (error: any) {
+        console.log(`⚠️ Error al manejar cookies: ${error.message}`);
+    }
+}

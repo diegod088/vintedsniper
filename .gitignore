@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+dist/
+
+# Configuration and Secrets
+.env
+cookies/
+
+# Storage and Logs
+data/
+logs/
+seen.json
+
+# Temporary Files and Debugging
+debug-screenshot.png
+test_*.txt
+*.log

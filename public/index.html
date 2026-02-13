@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vinted Sniper Bot - Pannello di Controllo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .status-running {
+            @apply bg-green-100 text-green-800;
+        }
+
+        .status-paused {
+            @apply bg-yellow-100 text-yellow-800;
+        }
+
+        .status-error {
+            @apply bg-red-100 text-red-800;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50">
+    <div class="min-h-screen p-4">
+        <!-- Header -->
+        <header class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-blue-600 p-2 rounded-lg">
+                        <i data-lucide="target" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">Vinted Sniper Bot</h1>
+                        <p class="text-gray-500">Pannello di Controllo v2.0</p>
+                    </div>
+                </div>
+                <div id="statusBadge" class="px-3 py-1 rounded-full text-sm font-medium status-running">
+                    <i data-lucide="activity" class="w-4 h-4 inline mr-1"></i>
+                    <span id="statusText">In esecuzione</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Control Panel -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-sm p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i data-lucide="settings" class="w-5 h-5 mr-2"></i>
+                        Controllo del Bot
+                    </h2>
+
+                    <div class="space-y-4">
+                        <div class="flex space-x-2">
+                            <button id="pauseBtn"
+                                class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg transition-colors">
+                                <i data-lucide="pause" class="w-4 h-4 inline mr-1"></i>
+                                Sospendi
+                            </button>
+                            <button id="resumeBtn"
+                                class="flex-1 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors">
+                                <i data-lucide="play" class="w-4 h-4 inline mr-1"></i>
+                                Riprendi
+                            </button>
+                        </div>
+
+                        <button id="refreshBtn"
+                            class="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            <i data-lucide="refresh-cw" class="w-4 h-4 inline mr-1"></i>
+                            Aggiorna Stato
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Configuration -->
+                <div class="bg-white rounded-lg shadow-sm p-6 mt-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i data-lucide="settings-2" class="w-5 h-5 mr-2"></i>
+                        Configurazione
+                    </h2>
+
+                    <form id="configForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                🔍 Capi da Cercare (T-shirt, Scarpe...)
+                            </label>
+                            <input type="text" id="searchTerms"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="pantaloni, maglietta, scarpe">
+                            <p class="text-xs text-gray-400 mt-1">Separa con la virgola per cercare più capi.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Prezzo Massimo (€)
+                            </label>
+                            <input type="number" id="maxPrice"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="100">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                🏷️ Marche Consentite
+                            </label>
+                            <input type="text" id="allowedBrands"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="Nike, Stone Island, Adidas">
+                            <p class="text-xs text-gray-400 mt-1">Usa la virgola per marche composte da più parole.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Parole Chiave Escluse
+                            </label>
+                            <input type="text" id="excludeKeywords"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="bambino, kids, child">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Taglie Consentite
+                            </label>
+                            <input type="text" id="sizes"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="S, M, L, XL">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Intervallo (ms)
+                            </label>
+                            <input type="number" id="pollInterval"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="4000">
+                        </div>
+
+                        <button type="submit"
+                            class="w-full bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            <i data-lucide="save" class="w-4 h-4 inline mr-1"></i>
+                            Salva Configurazione
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Status and Stats -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- System Status -->
+                <div class="bg-white rounded-lg shadow-sm p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i data-lucide="monitor" class="w-5 h-5 mr-2"></i>
+                        Stato del Sistema
+                    </h2>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="text-2xl font-bold text-blue-600" id="uptimeValue">0s</div>
+                            <div class="text-sm text-gray-500">Tempo Attività</div>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="text-2xl font-bold text-green-600" id="memoryValue">0MB</div>
+                            <div class="text-sm text-gray-500">Memoria</div>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="text-2xl font-bold text-purple-600" id="cacheTotal">0</div>
+                            <div class="text-sm text-gray-500">Cache Totale</div>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="text-2xl font-bold text-orange-600" id="cacheRecent">0</div>
+                            <div class="text-sm text-gray-500">Cache Recente</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Current Configuration -->
+                <div class="bg-white rounded-lg shadow-sm p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i data-lucide="info" class="w-5 h-5 mr-2"></i>
+                        Configurazione Attuale
+                    </h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <span class="text-sm text-gray-500">Ricerche:</span>
+                            <div class="font-medium text-blue-600" id="currentSearch">-</div>
+                        </div>
+                        <div>
+                            <span class="text-sm text-gray-500">Prezzo Max:</span>
+                            <div class="font-medium" id="currentMaxPrice">-</div>
+                        </div>
+                        <div>
+                            <span class="text-sm text-gray-500">Marche:</span>
+                            <div class="font-medium" id="currentBrands">-</div>
+                        </div>
+                        <div>
+                            <span class="text-sm text-gray-500">Taglie:</span>
+                            <div class="font-medium" id="currentSizes">-</div>
+                        </div>
+                        <div>
+                            <span class="text-sm text-gray-500">Escludi:</span>
+                            <div class="font-medium" id="currentExclude">-</div>
+                        </div>
+                        <div>
+                            <span class="text-sm text-gray-500">Intervallo:</span>
+                            <div class="font-medium" id="currentInterval">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Log -->
+                <div class="bg-white rounded-lg shadow-sm p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i data-lucide="file-text" class="w-5 h-5 mr-2"></i>
+                        Registro Attività
+                    </h2>
+
+                    <div id="activityLog" class="space-y-2 max-h-64 overflow-y-auto">
+                        <div class="text-sm text-gray-500 italic">In attesa di dati dal bot...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // State management
+        let currentStatus = {
+            running: false,
+            uptime: 0,
+            memory: { rss: 0 },
+            config: {},
+            cache: { total: 0, recent: 0 }
+        };
+
+        // DOM elements
+        const elements = {
+            statusBadge: document.getElementById('statusBadge'),
+            statusText: document.getElementById('statusText'),
+            pauseBtn: document.getElementById('pauseBtn'),
+            resumeBtn: document.getElementById('resumeBtn'),
+            refreshBtn: document.getElementById('refreshBtn'),
+            configForm: document.getElementById('configForm'),
+            activityLog: document.getElementById('activityLog'),
+            uptimeValue: document.getElementById('uptimeValue'),
+            memoryValue: document.getElementById('memoryValue'),
+            cacheTotal: document.getElementById('cacheTotal'),
+            cacheRecent: document.getElementById('cacheRecent'),
+            currentSearch: document.getElementById('currentSearch'),
+            currentMaxPrice: document.getElementById('currentMaxPrice'),
+            currentBrands: document.getElementById('currentBrands'),
+            currentSizes: document.getElementById('currentSizes'),
+            currentExclude: document.getElementById('currentExclude'),
+            currentInterval: document.getElementById('currentInterval')
+        };
+
+        // Utility functions
+        function formatUptime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+
+            if (hours > 0) return `${hours}h ${minutes}m`;
+            if (minutes > 0) return `${minutes}m ${secs}s`;
+            return `${secs}s`;
+        }
+
+        function formatMemory(bytes) {
+            return (bytes / 1024 / 1024).toFixed(1) + 'MB';
+        }
+
+        function updateStatus() {
+            elements.statusBadge.className = `px-3 py-1 rounded-full text-sm font-medium ${currentStatus.running ? 'status-running' : 'status-paused'
+                }`;
+            elements.statusText.textContent = currentStatus.running ? 'In esecuzione' : 'In pausa';
+
+            elements.uptimeValue.textContent = formatUptime(currentStatus.uptime);
+            elements.memoryValue.textContent = formatMemory(currentStatus.memory.rss);
+            elements.cacheTotal.textContent = currentStatus.cache.total;
+            elements.cacheRecent.textContent = currentStatus.cache.recent;
+        }
+
+        function updateConfigDisplay() {
+            const config = currentStatus.config;
+            elements.currentSearch.textContent = Array.isArray(config.searchTerms)
+                ? config.searchTerms.join(', ')
+                : config.searchTerms || '-';
+            elements.currentMaxPrice.textContent = config.maxPrice ? `${config.maxPrice}€` : '-';
+            elements.currentBrands.textContent = (Array.isArray(config.allowedBrands) ? config.allowedBrands.join(', ') : config.allowedBrands) || 'Tutte';
+            elements.currentSizes.textContent = (Array.isArray(config.sizes) ? config.sizes.join(', ') : config.sizes) || 'Tutte';
+            elements.currentExclude.textContent = (Array.isArray(config.excludeKeywords) ? config.excludeKeywords.join(', ') : config.excludeKeywords) || 'Nessuna';
+            elements.currentInterval.textContent = config.pollInterval
+                ? `${config.pollInterval / 1000}s`
+                : '-';
+        }
+
+        function addLogEntry(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `text-sm p-2 rounded ${type === 'error' ? 'bg-red-50 text-red-700' :
+                type === 'success' ? 'bg-green-50 text-green-700' :
+                    type === 'warning' ? 'bg-yellow-50 text-yellow-700' :
+                        'bg-gray-50 text-gray-700'
+                }`;
+
+            const time = new Date().toLocaleTimeString();
+            entry.innerHTML = `<span class="font-medium">${time}</span> - ${message}`;
+
+            elements.activityLog.insertBefore(entry, elements.activityLog.firstChild);
+
+            // Keep only last 20 entries
+            while (elements.activityLog.children.length > 20) {
+                elements.activityLog.removeChild(elements.activityLog.lastChild);
+            }
+        }
+
+        // API functions
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                currentStatus = { ...currentStatus, ...data };
+                updateStatus();
+            } catch (error) {
+                addLogEntry('Errore caricamento stato: ' + error.message, 'error');
+            }
+        }
+
+        async function fetchConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const data = await response.json();
+                currentStatus.config = data;
+                updateConfigDisplay();
+
+                // Update form values
+                document.getElementById('searchTerms').value = Array.isArray(data.searchTerms)
+                    ? data.searchTerms.join(', ')
+                    : data.searchTerms || '';
+                document.getElementById('maxPrice').value = data.maxPrice || '';
+                document.getElementById('allowedBrands').value = (Array.isArray(data.allowedBrands) ? data.allowedBrands.join(', ') : data.allowedBrands) || '';
+                document.getElementById('excludeKeywords').value = (Array.isArray(data.excludeKeywords) ? data.excludeKeywords.join(', ') : data.excludeKeywords) || '';
+                document.getElementById('sizes').value = (Array.isArray(data.sizes) ? data.sizes.join(', ') : data.sizes) || '';
+                document.getElementById('pollInterval').value = data.pollInterval || '';
+            } catch (error) {
+                addLogEntry('Errore caricamento configurazione: ' + error.message, 'error');
+            }
+        }
+
+        async function fetchStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                currentStatus.cache = data.cache;
+                updateStatus();
+            } catch (error) {
+                addLogEntry('Errore caricamento statistiche: ' + error.message, 'error');
+            }
+        }
+
+        async function updateConfig(configData) {
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(configData)
+                });
+
+                if (response.ok) {
+                    addLogEntry('Configurazione aggiornata con successo', 'success');
+                    await fetchConfig();
+                } else {
+                    throw new Error('Errore nella risposta del server');
+                }
+            } catch (error) {
+                addLogEntry('Errore aggiornamento configurazione: ' + error.message, 'error');
+            }
+        }
+
+        async function controlBot(action) {
+            try {
+                const response = await fetch('/api/control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    addLogEntry(`Bot ${action === 'pause' ? 'sospeso' : 'ripreso'} con successo`, 'success');
+                    await fetchStatus();
+                } else {
+                    throw new Error(data.error || 'Errore sconosciuto');
+                }
+            } catch (error) {
+                addLogEntry('Errore controllo bot: ' + error.message, 'error');
+            }
+        }
+
+        // Event listeners
+        elements.pauseBtn.addEventListener('click', () => controlBot('pause'));
+        elements.resumeBtn.addEventListener('click', () => controlBot('resume'));
+        elements.refreshBtn.addEventListener('click', async () => {
+            addLogEntry('Aggiornamento stato...', 'info');
+            await Promise.all([fetchStatus(), fetchConfig(), fetchStats()]);
+        });
+
+        elements.configForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const configData = {
+                searchTerms: document.getElementById('searchTerms').value,
+                maxPrice: parseFloat(document.getElementById('maxPrice').value),
+                allowedBrands: document.getElementById('allowedBrands').value,
+                excludeKeywords: document.getElementById('excludeKeywords').value,
+                sizes: document.getElementById('sizes').value,
+                pollInterval: parseInt(document.getElementById('pollInterval').value)
+            };
+
+            await updateConfig(configData);
+        });
+
+        // Initialize
+        async function init() {
+            addLogEntry('Pannello di controllo avviato', 'success');
+            await Promise.all([fetchStatus(), fetchConfig(), fetchStats()]);
+
+            // Auto-refresh every 5 seconds
+            setInterval(async () => {
+                await Promise.all([fetchStatus(), fetchStats()]);
+            }, 5000);
+        }
+
+        // Start the application
+        init();
+    </script>
+</body>
+
+</html>

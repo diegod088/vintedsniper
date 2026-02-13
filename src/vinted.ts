@@ -66,25 +66,30 @@ export class VintedAPI {
       }
     }
 
+    const args = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-gpu',
+      '--disable-web-security',
+      '--disable-features=VizDisplayCompositor,LibvpxVp8IncrementalDecoding,WebRtcHideLocalIpsWithMdns,GpuProcessHighPriority',
+      '--disable-crash-reporter',
+      '--disable-crashpad',
+      '--disable-breakpad',
+      '--single-process',
+      '--use-gl=swiftshader',
+      '--crash-dumps-dir=/app/logs'
+    ];
+
+    console.log(`🚀 Lanzando browser con args: ${args.join(' ')}`);
+
     this.browser = await puppeteer.launch({
-      headless: 'new',
+      headless: true, // Cambiando a true tradicional para probar
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor,LibvpxVp8IncrementalDecoding,WebRtcHideLocalIpsWithMdns,GpuProcessHighPriority',
-        '--disable-crash-reporter',
-        '--disable-crashpad',
-        '--single-process',
-        '--use-gl=swiftshader',
-        '--crash-dumps-dir=/tmp'
-      ]
+      args
     });
     return this.browser;
   }

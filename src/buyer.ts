@@ -24,23 +24,28 @@ export class VintedBuyer {
     console.log(`🛒 Iniciando compra para item ${itemId}`);
     console.log(`🔗 URL: ${buyUrl}`);
 
+    const args = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--disable-gpu',
+      '--window-size=1920,1080',
+      '--disable-features=VizDisplayCompositor,LibvpxVp8IncrementalDecoding,WebRtcHideLocalIpsWithMdns,GpuProcessHighPriority',
+      '--disable-crash-reporter',
+      '--disable-crashpad',
+      '--disable-breakpad',
+      '--single-process',
+      '--use-gl=swiftshader',
+      '--crash-dumps-dir=/app/logs'
+    ];
+
+    console.log(`🚀 Lanzando [Buyer] con args: ${args.join(' ')}`);
+
     const browser = await puppeteer.launch({
-      headless: 'new',
+      headless: true,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu',
-        '--window-size=1920,1080',
-        '--disable-features=VizDisplayCompositor,LibvpxVp8IncrementalDecoding,WebRtcHideLocalIpsWithMdns,GpuProcessHighPriority',
-        '--disable-crash-reporter',
-        '--disable-crashpad',
-        '--single-process',
-        '--use-gl=swiftshader',
-        '--crash-dumps-dir=/tmp'
-      ],
+      args,
     });
 
     try {

@@ -6,27 +6,30 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files and tsconfig
 COPY package*.json tsconfig.json ./
 
-# Install all dependencies (fast because no chromium download)
+# Install all dependencies (development dependencies needed for tsc)
 RUN npm ci
 
-# Copy source code and build
+# Copy source code
 COPY src/ ./src/
-RUN npm run build
+
+# Build TypeScript and LIST contents for debugging
+RUN npm run build && ls -R dist/
 
 # Stage 2: Production
 FROM node:18-slim
 
-# Skip Chromium download during dependency install
-# Use system chromium instead
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-
+# Set working directory
 WORKDIR /app
 
-# Install Chromium and system dependencies efficiently in a single layer
+# Essential Puppeteer environment
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    NODE_ENV=production
+
+# Install Chromium and system dependencies efficiently
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
@@ -70,13 +73,14 @@ RUN apt-get update && apt-get install -y \
 COPY package*.json ./
 COPY public/ ./public/
 
-# Install production dependencies only (fast because no chromium download)
+# Install production dependencies only
 RUN npm ci --only=production
 
 # Copy built files from builder
-COPY --from=builder /app/dist ./dist/
+# We use absolute paths to be safe
+COPY --from=builder /app/dist /app/dist
 
-# Create necessary directories
+# Create necessary directories and set permissions
 RUN mkdir -p cookies logs data && chmod 777 cookies logs data
 
 # Run as non-root user
@@ -86,4 +90,5 @@ RUN groupadd -r botuser && useradd -r -g botuser -G audio,video botuser \
 USER botuser
 
 # Start the bot
-CMD ["node", "dist/index.js"]
+# Use absolute path to index.js to avoid any ambiguity
+CMD ["node", "/app/dist/index.js"]

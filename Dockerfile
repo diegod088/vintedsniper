@@ -66,8 +66,9 @@ RUN apt-get update && apt-get install -y \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package files
+# Copy package files and public folder
 COPY package*.json ./
+COPY public/ ./public/
 
 # Install production dependencies only (fast because no chromium download)
 RUN npm ci --only=production

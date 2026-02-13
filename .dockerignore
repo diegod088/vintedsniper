@@ -13,4 +13,3 @@ tsconfig.json
 Dockerfile
 .dockerignore
 seen.json
-public

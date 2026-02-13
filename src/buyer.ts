@@ -26,6 +26,7 @@ export class VintedBuyer {
 
     const browser = await puppeteer.launch({
       headless: 'new',
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -37,7 +38,8 @@ export class VintedBuyer {
         '--disable-crash-reporter',
         '--disable-crashpad',
         '--single-process',
-        '--use-gl=swiftshader'
+        '--use-gl=swiftshader',
+        '--crash-dumps-dir=/tmp'
       ],
     });
 

@@ -78,7 +78,10 @@ export class VintedAPI {
         '--disable-gpu',
         '--disable-web-security',
         '--disable-features=VizDisplayCompositor,LibvpxVp8IncrementalDecoding,WebRtcHideLocalIpsWithMdns,GpuProcessHighPriority',
-        '--disable-crash-reporter'
+        '--disable-crash-reporter',
+        '--disable-crashpad',
+        '--single-process',
+        '--use-gl=swiftshader'
       ]
     });
     return this.browser;

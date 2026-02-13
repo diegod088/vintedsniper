@@ -34,7 +34,10 @@ export class VintedBuyer {
         '--disable-gpu',
         '--window-size=1920,1080',
         '--disable-features=VizDisplayCompositor,LibvpxVp8IncrementalDecoding,WebRtcHideLocalIpsWithMdns,GpuProcessHighPriority',
-        '--disable-crash-reporter'
+        '--disable-crash-reporter',
+        '--disable-crashpad',
+        '--single-process',
+        '--use-gl=swiftshader'
       ],
     });
 

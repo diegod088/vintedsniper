@@ -33,6 +33,8 @@ export class VintedBuyer {
         '--disable-accelerated-2d-canvas',
         '--disable-gpu',
         '--window-size=1920,1080',
+        '--disable-features=VizDisplayCompositor,LibvpxVp8IncrementalDecoding,WebRtcHideLocalIpsWithMdns,GpuProcessHighPriority',
+        '--disable-crash-reporter'
       ],
     });
 

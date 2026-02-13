@@ -27,8 +27,10 @@ export class WebPanel {
         // Basic Auth Middleware
         this.app.use((req, res, next) => {
             if (!config.PANEL_PASSWORD) {
+                console.log('⚠️ PANEL_PASSWORD no configurado. El panel web no tendrá contraseña.');
                 return next();
             }
+            // console.log('🔐 PANEL_PASSWORD configurado. Autenticación básica activada.');
 
             const authHeader = req.headers.authorization;
             if (!authHeader) {
@@ -81,13 +83,14 @@ export class WebPanel {
             allowedBrands: config.ALLOWED_BRANDS,
             pollInterval: config.POLL_INTERVAL_MS,
             backoffDelay: config.BACKOFF_DELAY_MS,
-            vintedBaseUrl: config.VINTED_BASE_URL
+            vintedBaseUrl: config.VINTED_BASE_URL,
+            maxAgeMinutes: config.MAX_AGE_MINUTES
         });
     }
 
     private async updateConfig(req: express.Request, res: express.Response) {
         try {
-            const { searchTerms, maxPrice, allowedBrands, pollInterval, excludeKeywords, sizes } = req.body;
+            const { searchTerms, maxPrice, allowedBrands, pollInterval, excludeKeywords, sizes, maxAgeMinutes } = req.body;
 
             const parseListHelper = (val: any) => {
                 if (!val) return undefined;
@@ -133,10 +136,16 @@ export class WebPanel {
                 MAX_PRICE: config.MAX_PRICE,
                 ALLOWED_BRANDS: config.ALLOWED_BRANDS,
                 POLL_INTERVAL_MS: config.POLL_INTERVAL_MS,
-                SIZES: filterUpdates.sizes
+                SIZES: filterUpdates.sizes,
+                MAX_AGE_MINUTES: config.MAX_AGE_MINUTES
             });
 
             // Notificar al bot que aplique los cambios
+            if (maxAgeMinutes !== undefined) {
+                config.MAX_AGE_MINUTES = parseInt(maxAgeMinutes);
+                filterUpdates.maxAgeMinutes = config.MAX_AGE_MINUTES;
+            }
+
             this.bot.applyConfig(filterUpdates);
 
             res.json({

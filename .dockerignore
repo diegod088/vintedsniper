@@ -9,7 +9,6 @@ data
 README.md
 docker-compose.yml
 nodemon.json
-tsconfig.json
 Dockerfile
 .dockerignore
 seen.json

@@ -1,0 +1,16 @@
+node_modules
+dist
+logs
+cookies
+data
+.env
+.git
+.gitignore
+README.md
+docker-compose.yml
+nodemon.json
+tsconfig.json
+Dockerfile
+.dockerignore
+seen.json
+public

@@ -1,39 +1,34 @@
 # Stage 1: Build
 FROM node:18-slim AS builder
 
-WORKDIR /app
+# Skip Chromium download during dependency install
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
-# Install dependencies for Puppeteer and build tools
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    ca-certificates \
-    fonts-liberation \
-    --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
 
 # Copy package files
 COPY package*.json tsconfig.json ./
 
-# Install dependencies (no canvas anymore)
+# Install all dependencies (fast because no chromium download)
 RUN npm ci
 
-# Copy source code
+# Copy source code and build
 COPY src/ ./src/
-
-# Build TypeScript
 RUN npm run build
 
 # Stage 2: Production
 FROM node:18-slim
 
+# Skip Chromium download during dependency install
+# Use system chromium instead
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
 WORKDIR /app
 
-# Install Puppeteer dependencies for Debian Slim
+# Install Chromium and system dependencies efficiently in a single layer
 RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    ca-certificates \
+    chromium \
     fonts-liberation \
     libasound2 \
     libatk-bridge2.0-0 \
@@ -74,22 +69,17 @@ RUN apt-get update && apt-get install -y \
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only
+# Install production dependencies only (fast because no chromium download)
 RUN npm ci --only=production
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist/
 
-# Create directories for cookies and logs
+# Create necessary directories
 RUN mkdir -p cookies logs data && chmod 777 cookies logs data
-
-# Configure Puppeteer
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
 
 # Run as non-root user
 RUN groupadd -r botuser && useradd -r -g botuser -G audio,video botuser \
-    && mkdir -p /home/botuser/Downloads \
-    && chown -R botuser:botuser /home/botuser \
     && chown -R botuser:botuser /app
 
 USER botuser

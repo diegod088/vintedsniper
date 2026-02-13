@@ -140,11 +140,32 @@ export class VintedAPI {
             waitUntil: 'networkidle2',
             timeout: 120000 // 120 segundos
           });
+          await page.goto(searchUrl, {
+            waitUntil: 'networkidle2',
+            timeout: 120000 // 120 segundos
+          });
+
+          // Check for Cloudflare
+          const pageTitle = await page.title();
+          const pageContent = await page.content();
+          if (pageTitle.includes('Just a moment') || pageContent.includes('challenge-platform')) {
+            console.error('🛑 CLOUDFLARE BLOCK DETECTED (Just a moment...)');
+            console.error('👉 ACTION REQUIRED: Run "npm run login" locally to generate valid cookies.');
+            if (process.env.DEBUG_SCREENSHOT === 'true') {
+              try { await page.screenshot({ path: 'cloudflare-block.png' }); } catch (e) { }
+            }
+            throw new Error('CLOUDFLARE_BLOCK');
+          }
+
           await handleCookieConsent(page);
           navigationSuccess = true;
           console.log('✅ Navegación exitosa');
         } catch (navError: any) {
           console.log(`⚠️ Error en navegación (intento ${attempts}): ${navError.message}`);
+
+          if (navError.message === 'CLOUDFLARE_BLOCK') {
+            throw navError; // Stop retrying immediately if blocked
+          }
 
           if (attempts < maxAttempts) {
             console.log('🔄 Esperando 5 segundos antes de reintentar...');
@@ -480,7 +501,11 @@ export class VintedAPI {
 
       return extractedItems;
     } catch (error: any) {
-      console.error(`❌ Error en searchItems para "${keyword}":`, error.message);
+      if (error.message === 'CLOUDFLARE_BLOCK') {
+        console.error('❌ Aborting search due to Cloudflare block.');
+      } else {
+        console.error(`❌ Error en searchItems para "${keyword}":`, error.message);
+      }
       return [];
     }
   }

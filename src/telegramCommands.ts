@@ -3,6 +3,7 @@ import { config } from './config';
 
 export interface BotSharedState {
   paused: boolean;
+  pollIntervalMs: number;
 }
 
 export interface StatusInfo {
@@ -71,6 +72,7 @@ const PANEL_KEYBOARD = {
 export function startTelegramCommands(
   sharedState: BotSharedState,
   getStatus: () => StatusInfo,
+  updateSpeed: (ms: number) => void
 ): void {
   let offset = 0;
 
@@ -108,9 +110,22 @@ export function startTelegramCommands(
           } else if (text === '/resume' || text === 'riprendi') {
             sharedState.paused = false;
             await sendMessage('▶ Bot *ripreso*.');
+          } else if (text.startsWith('/speed')) {
+            const parts = text.split(' ');
+            if (parts.length === 2) {
+              const seconds = parseFloat(parts[1]);
+              if (!isNaN(seconds) && seconds >= 0.5 && seconds <= 600) {
+                updateSpeed(seconds * 1000);
+                await sendMessage(`⏱️ Velocità aggiornata: *${seconds}s*`);
+              } else {
+                await sendMessage('⚠️ Inserisci un numero valido tra 0.5 y 600 secondi.');
+              }
+            } else {
+              await sendMessage('💡 Uso: `/speed 2` (per 2 secondi de intervallo)');
+            }
           } else if (text === '/help') {
             await sendMessage(
-              '*Comandi:*\n/start – Pannello\n/status – Stato\n/pause – Sospendi\n/resume – Riprendi\n/help – Questo aiuto',
+              '*Comandi:*\n/start – Pannello\n/status – Stato\n/pause – Sospendi\n/resume – Riprendi\n/speed <sec> – Velocità\n/help – Aiuto',
             );
           }
         }

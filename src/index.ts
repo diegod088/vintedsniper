@@ -9,6 +9,7 @@ import { logger, LogLevel } from './logger';
 import { startTelegramCommands } from './telegramCommands';
 import { WebPanel } from './webpanel';
 import { execSync } from 'child_process';
+import { dynamicConfigManager } from './dynamic-config';
 
 // 🧹 Matar instancias anteriores para evitar conflictos de Telegram (409 Conflict)
 try {
@@ -44,6 +45,7 @@ try {
 
 export interface BotSharedState {
   paused: boolean;
+  pollIntervalMs: number;
 }
 
 export class SniperBot {
@@ -57,7 +59,10 @@ export class SniperBot {
   public sharedState: BotSharedState;
 
   constructor() {
-    this.sharedState = { paused: false };
+    this.sharedState = {
+      paused: false,
+      pollIntervalMs: config.POLL_INTERVAL_MS
+    };
     const filterConfig = {
       maxPrice: config.MAX_PRICE,
       brands: config.ALLOWED_BRANDS,
@@ -262,7 +267,7 @@ export class SniperBot {
       paused: this.sharedState.paused,
       cacheTotal: this.getCacheStats().total,
       cacheRecent: this.getCacheStats().recent,
-    }));
+    }), this.updatePollInterval.bind(this));
 
     // Bucle principal (respeta pausa desde Telegram)
     while (this.isRunning) {
@@ -273,8 +278,20 @@ export class SniperBot {
       await this.searchAndProcess();
 
       // Esperar antes de la próxima búsqueda
-      await this.sleep(config.POLL_INTERVAL_MS);
+      await this.sleep(this.sharedState.pollIntervalMs);
     }
+  }
+
+  /**
+   * Actualiza el intervalo de búsqueda y lo persiste
+   */
+  public updatePollInterval(ms: number): void {
+    this.sharedState.pollIntervalMs = ms;
+    const settings = dynamicConfigManager.load();
+    settings.POLL_INTERVAL_MS = ms;
+    dynamicConfigManager.save(settings);
+    logger.info(`Intervalo de búsqueda actualizado: ${ms}ms`, undefined, 'BOT');
+    console.log(`⏱️ Intervalo de búsqueda actualizado a ${ms / 1000}s`);
   }
 
   public getCacheStats(): { total: number; recent: number } {

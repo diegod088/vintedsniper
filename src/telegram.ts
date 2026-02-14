@@ -98,60 +98,54 @@ export class TelegramBot {
 
   private async sendMultiplePhotos(item: VintedItem, caption: string, existingBrowser?: Browser): Promise<void> {
     try {
-      const mediaGroup = [];
-      const maxPhotos = Math.min(item.photo_urls!.length, 8);
+      const maxPhotos = Math.min(item.photo_urls!.length, 10);
+      const buffers: Buffer[] = [];
+
+      console.log(`📸 Preparando álbum de ${maxPhotos} fotos...`);
 
       for (let i = 0; i < maxPhotos; i++) {
-        const photoUrl = item.photo_urls![i];
-        console.log(`📸 Procesando foto ${i + 1}/${maxPhotos}...`);
-
         try {
-          const imageBuffer = await downloadImageWithAllMethods(photoUrl, existingBrowser);
-
-          if (imageBuffer && imageBuffer.length > 1000 && imageBuffer.length <= TelegramBot.MAX_PHOTO_BYTES) {
-            const formData = new FormData();
-            formData.append('photo', imageBuffer, {
-              filename: `photo_${i}.jpg`,
-              contentType: 'image/jpeg'
-            });
-
-            // Retardo para no saturar la API de Telegram
-            if (i > 0) await new Promise(r => setTimeout(r, 500));
-
-            const tgResponse: any = await axios.post(`${this.baseURL}/sendPhoto`, formData, {
-              headers: formData.getHeaders(),
-              params: {
-                chat_id: this.chatId,
-                caption: mediaGroup.length === 0 ? caption : undefined,
-                parse_mode: 'Markdown'
-              },
-              timeout: 45000
-            });
-
-            if (tgResponse.data.ok) {
-              console.log(`✅ Foto ${i + 1} enviada`);
-              mediaGroup.push({
-                type: 'photo',
-                media: tgResponse.data.result.photo.file_id
-              });
-            }
-          } else {
-            console.log(`⚠️ Saltando foto ${i + 1} (archivo inválido o vacío)`);
+          const buffer = await downloadImageWithAllMethods(item.photo_urls![i], existingBrowser);
+          if (buffer && buffer.length > 1000) {
+            buffers.push(buffer);
           }
-        } catch (err: any) {
-          console.error(`❌ Error procesando foto ${i + 1}: ${err.message}`);
+        } catch (err) {
+          console.error(`⚠️ Error descargando foto ${i + 1} para el álbum`);
         }
       }
 
-      if (mediaGroup.length === 0) {
-        console.log('⚠️ No se pudo enviar ninguna de las múltiples fotos. Intentando single photo fallback.');
+      if (buffers.length === 0) {
+        console.log('⚠️ No se pudo descargar ninguna foto, intentando single photo fallback.');
         await this.sendSinglePhoto(item, caption, existingBrowser);
-      } else {
-        console.log(`✅ Se enviaron ${mediaGroup.length} fotos exitosamente`);
+        return;
       }
+
+      const formData = new FormData();
+      const mediaGroup = buffers.map((buffer, i) => {
+        const attachmentName = `photo${i}.jpg`;
+        formData.append(attachmentName, buffer, { filename: attachmentName, contentType: 'image/jpeg' });
+
+        return {
+          type: 'photo',
+          media: `attach://${attachmentName}`,
+          caption: i === 0 ? caption : undefined,
+          parse_mode: i === 0 ? 'Markdown' : undefined
+        };
+      });
+
+      formData.append('media', JSON.stringify(mediaGroup));
+
+      await axios.post(`${this.baseURL}/sendMediaGroup`, formData, {
+        params: { chat_id: this.chatId },
+        headers: formData.getHeaders(),
+        timeout: 60000
+      });
+
+      console.log(`✅ Álbum de ${mediaGroup.length} fotos enviado con éxito`);
     } catch (error: any) {
-      console.error('❌ Error enviando múltiples fotos:', error.message);
-      throw new Error(`No se pudieron enviar fotos: ${error.message}`);
+      console.error('❌ Error enviando álbum de fotos:', error.message);
+      // fallback a una sola foto si falla el álbum
+      await this.sendSinglePhoto(item, caption, existingBrowser).catch(() => { });
     }
   }
 

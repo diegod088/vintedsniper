@@ -203,13 +203,14 @@ export class VintedAPI {
         items.push({
           id: parseInt(match[1]),
           title: match[2],
-          price: parseFloat(match[3]),
+          price: parseFloat(match[3].replace(',', '.')),
           currency: match[4],
           brand: match[5],
           size: match[6],
           condition: match[7],
           url: match[8].startsWith('http') ? match[8] : `https://www.vinted.it${match[8]}`,
           photo_url: match[9].replace(/\\\//g, '/'),
+          photo_urls: [match[9].replace(/\\\//g, '/')],
           seller: { id: 0, login: 'Unknown', business: false, feedback_reputation: 0, feedback_count: 0 },
           created_at: new Date().toISOString()
         });
@@ -228,15 +229,23 @@ export class VintedAPI {
               items.push({
                 id: item.id,
                 title: item.title,
-                price: parseFloat(item.price?.amount || item.total_item_price?.amount || '0'),
+                price: parseFloat((item.price?.amount || item.total_item_price?.amount || '0').toString().replace(',', '.')),
                 currency: item.price?.currency_code || 'EUR',
                 brand: item.brand_title || '',
                 size: item.size_title || '',
                 condition: item.status || '',
-                url: `https://www.vinted.it${item.path}`,
+                url: item.path.startsWith('http') ? item.path : `https://www.vinted.it${item.path}`,
                 photo_url: item.photo?.url || '',
-                seller: { id: 0, login: 'Unknown', business: false, feedback_reputation: 0, feedback_count: 0 },
-                created_at: new Date().toISOString()
+                photo_urls: item.photos?.map((p: any) => p.url) || (item.photo?.url ? [item.photo.url] : []),
+                seller: {
+                  id: item.user?.id || 0,
+                  login: item.user?.login || item.user_login || 'Unknown',
+                  business: item.user?.business || false,
+                  feedback_reputation: 0,
+                  feedback_count: 0
+                },
+                created_at: new Date().toISOString(),
+                location: item.user?.country_title || item.user?.city || item.location_title || ''
               });
             } catch (e) { }
           }
@@ -594,13 +603,17 @@ export class VintedAPI {
 
                     console.log(`     📸 URL encontrada: ${cleanUrl}`);
 
-                    // Verificar que sea una URL de imagen válida
-                    const isVintedImage = cleanUrl.includes('vinted.net') ||
-                      cleanUrl.match(/\.(webp|jpg|jpeg|png)/i);
+                    // Verificar que sea una URL de imagen válida y NO sea un anuncio/logo
+                    const isVintedImage = cleanUrl.includes('vinted.net/t/') ||
+                      (cleanUrl.includes('vinted.net') && (cleanUrl.match(/\.(webp|jpg|jpeg|png)/i) || cleanUrl.includes('f800')));
 
-                    if (isVintedImage && cleanUrl.length > 20 && !photoUrls.includes(cleanUrl)) {
+                    const isAdOrLogo = cleanUrl.toLowerCase().match(/(cms|asset|advertising|banner|logo|promo|marketing|avatar|placeholder|vinted\.png|cookie|onetrust)/i);
+
+                    if (isVintedImage && !isAdOrLogo && cleanUrl.length > 20 && !photoUrls.includes(cleanUrl)) {
                       photoUrls.push(cleanUrl);
                       console.log(`     ✅ URL válida agregada: ${cleanUrl.substring(0, 80)}`);
+                    } else if (isAdOrLogo) {
+                      console.log(`     🚫 URL descartada (Publicidad/Logo): ${cleanUrl.substring(0, 50)}`);
                     } else {
                       console.log(`     ❌ URL rechazada o duplicada: ${cleanUrl.substring(0, 50)}`);
                     }

@@ -81,6 +81,9 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
 
     await handleCookieConsent(page);
 
+    // Esperar un poco a que los elementos dinámicos carguen (importante para carruseles de fotos)
+    await new Promise(r => setTimeout(r, 2000));
+
     // Esperar un poco a que los elementos dinámicos carguen si es necesario
     try {
       await page.waitForSelector('.details-list__item', { timeout: 10000 });
@@ -97,36 +100,41 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
         '.item-photo img', '.item-photos img', '[data-testid="item-photo"] img',
         '[data-testid="item-photos"] img', '.ItemBox img', '.details-list img',
         'img[alt*="photo"]', 'img[alt*="Photo"]', 'img[itemprop="image"]',
-        '.item-description img', '.user-items img', '.main-photo img'
+        '.item-description img', '.user-items img', '.main-photo img',
+        '.item-attributes img'
       ];
 
       vintedSelectors.forEach(selector => {
         document.querySelectorAll(selector).forEach((img: any) => {
           // Intentar obtener la mejor resolución posible
           let src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.src;
-          if (src && src.length > 20) {
-            // No limpiar totalmente el query param si es de vinted.net, a veces son necesarios
-            // Pero si termina en .webp o similar, podemos intentar limpiar
-            if (src.includes('vinted.net')) {
-              // Intentar forzar resolución alta si es una miniatura
-              src = src.replace(/\/t\/\d+_\d+_[^/]+\/\d+x\d+\//, (match: string) => match.replace(/\d+x\d+/, 'f800'));
+          if (src && src.length > 20 && !src.includes('base64')) {
+            // Filtrar anuncios y logos
+            const isAd = src.toLowerCase().match(/(cms|asset|advertising|banner|logo|promo|marketing|avatar|placeholder|vinted\.png|cookie|onetrust)/i);
+            const isVintedPhoto = src.includes('vinted.net/t/') || src.includes('f800');
+
+            if (isVintedPhoto && !isAd) {
+              // No limpiar totalmente el query param si es de vinted.net, a veces son necesarios
+              if (src.includes('vinted.net')) {
+                // Intentar forzar resolución alta si es una miniatura
+                src = src.replace(/\/t\/\d+_\d+_[^/]+\/\d+x\d+\//, (match: string) => match.replace(/\d+x\d+/, 'f800'));
+              }
+              urls.add(src);
             }
-            urls.add(src);
           }
         });
       });
 
       // 2. Si no encontramos nada, buscar en TODAS las imágenes grandes
-      if (urls.size === 0) {
-        document.querySelectorAll('img').forEach((img: any) => {
-          const src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.src;
-          if (src && src.length > 20 && !src.includes('avatar') && !src.includes('icon') && !src.includes('placeholder')) {
-            if (img.naturalWidth > 150 || src.includes('f800') || src.includes('large') || src.includes('images')) {
-              urls.add(src);
-            }
+      document.querySelectorAll('img').forEach((img: any) => {
+        const src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.src;
+        if (src && src.length > 20 && !src.includes('avatar') && !src.includes('icon') && !src.includes('placeholder') && !src.includes('base64')) {
+          const isAd = src.toLowerCase().match(/(cms|asset|advertising|banner|logo|promo|marketing|avatar|placeholder|vinted\.png|cookie|onetrust)/i);
+          if (!isAd && (img.naturalWidth > 150 || src.includes('f800') || src.includes('large') || src.includes('images'))) {
+            urls.add(src);
           }
-        });
-      }
+        }
+      });
 
       return Array.from(urls);
     });
@@ -160,7 +168,7 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
       ];
 
       const locationKeywords = [
-        'posizione', 'location', 'lieu', 'ubicación', 'país', 'country', 'pays', 'land', 'paese'
+        'posizione', 'location', 'lieu', 'ubicación', 'país', 'country', 'pays', 'land', 'paese', 'stadt', 'città', 'ville', 'ciudad'
       ];
 
       for (const item of items) {

@@ -93,21 +93,27 @@ export class WebPanel {
             const { searchTerms, maxPrice, allowedBrands, pollInterval, excludeKeywords, sizes, maxAgeMinutes } = req.body;
 
             const parseListHelper = (val: any) => {
-                if (!val) return undefined;
-                if (Array.isArray(val)) return val;
-                if (typeof val !== 'string') return val;
+                if (val === undefined || val === null) return undefined;
+                if (Array.isArray(val)) return val.map(s => String(s).trim()).filter(Boolean);
+                if (typeof val !== 'string') return [String(val).trim()];
+
+                let result: string[] = [];
                 if (val.includes(',')) {
-                    return val.split(',').map((s: string) => s.trim()).filter(Boolean);
+                    result = val.split(',').map((s: string) => s.trim());
+                } else {
+                    result = val.split(/\s+/).map((s: string) => s.trim());
                 }
-                return val.split(/\s+/).map((s: string) => s.trim()).filter(Boolean);
+                return result.filter(Boolean);
             };
 
             // Actualizar config en memoria
-            if (searchTerms) {
-                config.SEARCH_TERMS = parseListHelper(searchTerms) || [];
+            if (searchTerms !== undefined) {
+                config.SEARCH_TERMS = parseListHelper(searchTerms) || config.SEARCH_TERMS;
             }
 
-            if (maxPrice !== undefined) config.MAX_PRICE = parseFloat(maxPrice);
+            if (maxPrice !== undefined) {
+                config.MAX_PRICE = parseFloat(String(maxPrice).replace(',', '.'));
+            }
 
             if (allowedBrands !== undefined) {
                 config.ALLOWED_BRANDS = parseListHelper(allowedBrands);
@@ -115,13 +121,18 @@ export class WebPanel {
             }
 
             if (pollInterval) {
-                this.bot.updatePollInterval(parseInt(pollInterval));
+                this.bot.updatePollInterval(parseInt(String(pollInterval)));
+            }
+
+            if (maxAgeMinutes !== undefined) {
+                config.MAX_AGE_MINUTES = parseInt(String(maxAgeMinutes));
             }
 
             // Propagar cambios a los filtros del bot
             const filterUpdates: any = {
                 maxPrice: config.MAX_PRICE,
                 brands: config.ALLOWED_BRANDS,
+                maxAgeMinutes: config.MAX_AGE_MINUTES
             };
 
             if (excludeKeywords !== undefined) {
@@ -132,34 +143,33 @@ export class WebPanel {
                 filterUpdates.sizes = parseListHelper(sizes);
             }
 
-            // Persistir configuración (pollInterval ya se persiste en updatePollInterval)
+            // Persistir configuración
             dynamicConfigManager.save({
                 SEARCH_TERMS: config.SEARCH_TERMS,
                 MAX_PRICE: config.MAX_PRICE,
                 ALLOWED_BRANDS: config.ALLOWED_BRANDS,
                 POLL_INTERVAL_MS: config.POLL_INTERVAL_MS,
                 SIZES: filterUpdates.sizes,
-                MAX_AGE_MINUTES: config.MAX_AGE_MINUTES
+                MAX_AGE_MINUTES: config.MAX_AGE_MINUTES,
+                EXCLUDE_KEYWORDS: filterUpdates.excludeKeywords
             });
 
             // Notificar al bot que aplique los cambios
-            if (maxAgeMinutes !== undefined) {
-                config.MAX_AGE_MINUTES = parseInt(maxAgeMinutes);
-                filterUpdates.maxAgeMinutes = config.MAX_AGE_MINUTES;
-            }
-
             this.bot.applyConfig(filterUpdates);
 
             res.json({
-                success: true, config: {
+                success: true,
+                config: {
                     searchTerms: config.SEARCH_TERMS,
                     maxPrice: config.MAX_PRICE,
                     allowedBrands: config.ALLOWED_BRANDS,
                     pollInterval: config.POLL_INTERVAL_MS,
+                    maxAgeMinutes: config.MAX_AGE_MINUTES,
                     ...filterUpdates
                 }
             });
         } catch (error: any) {
+            console.error('❌ Error en updateConfig:', error);
             if (!res.headersSent) {
                 res.status(500).json({ success: false, error: error.message });
             }

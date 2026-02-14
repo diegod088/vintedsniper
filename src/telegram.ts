@@ -65,15 +65,20 @@ export class TelegramBot {
 
       // 2. Actualizar URLs de imágenes
       if (extraction.urls && extraction.urls.length > 0) {
+        console.log(`📸 Encontradas ${extraction.urls.length} imágenes en la página de detalles`);
         item.photo_urls = extraction.urls;
         item.photo_url = extraction.urls[0];
+      } else {
+        console.log('⚠️ No se encontraron imágenes adicionales en la página de detalles');
       }
 
       const caption = this.formatCaption(item);
 
       if (item.photo_urls && item.photo_urls.length > 1) {
+        console.log(`🖼️ Enviando álbum de ${item.photo_urls.length} fotos...`);
         await this.sendMultiplePhotos(item, caption, existingBrowser);
       } else {
+        console.log('🖼️ Enviando foto única...');
         await this.sendSinglePhoto(item, caption, existingBrowser);
       }
       console.log('✅ Notificación enviada con detalles extraídos');

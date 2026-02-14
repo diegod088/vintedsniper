@@ -19,6 +19,7 @@ export interface Config {
   AUTO_BUY_ENABLED: boolean;
   PANEL_PASSWORD?: string;
   MAX_AGE_MINUTES: number;
+  EXCLUDE_KEYWORDS: string[];
 }
 
 function getEnvVar(key: string, defaultValue?: string): string {
@@ -59,18 +60,19 @@ function getAllowedBrands(): string[] | undefined {
 const savedSettings = dynamicConfigManager.load();
 
 export const config: Config = {
-  SEARCH_TERMS: savedSettings.SEARCH_TERMS || getSearchTerms(),
-  ALLOWED_BRANDS: savedSettings.ALLOWED_BRANDS || getAllowedBrands(),
-  MAX_PRICE: savedSettings.MAX_PRICE || parseFloat(getEnvVar('MAX_PRICE', '40')),
+  SEARCH_TERMS: savedSettings.SEARCH_TERMS ?? getSearchTerms(),
+  ALLOWED_BRANDS: savedSettings.ALLOWED_BRANDS ?? getAllowedBrands(),
+  MAX_PRICE: savedSettings.MAX_PRICE ?? parseFloat(getEnvVar('MAX_PRICE', '40')),
   TOK: getEnvVar('TOK'),
   CHAT_ID: getEnvVar('CHAT_ID'),
   COOKIE_FILE: path.resolve(getEnvVar('COOKIE_FILE', 'cookies/vinted.json')),
-  POLL_INTERVAL_MS: savedSettings.POLL_INTERVAL_MS || 4000,
+  POLL_INTERVAL_MS: savedSettings.POLL_INTERVAL_MS ?? 4000,
   BACKOFF_DELAY_MS: 30000, // 30 segundos en caso de 429
   VINTED_BASE_URL: process.env.VINTED_BASE_URL || 'https://www.vinted.ro',
   AUTO_BUY_ENABLED: process.env.AUTO_BUY_ENABLED === 'true',
   PANEL_PASSWORD: process.env.PANEL_PASSWORD,
-  MAX_AGE_MINUTES: savedSettings.MAX_AGE_MINUTES || parseInt(getEnvVar('MAX_AGE_MINUTES', '60')),
+  MAX_AGE_MINUTES: savedSettings.MAX_AGE_MINUTES ?? parseInt(getEnvVar('MAX_AGE_MINUTES', '60')),
+  EXCLUDE_KEYWORDS: savedSettings.EXCLUDE_KEYWORDS || parseList(process.env.EXCLUDE_KEYWORDS || '')
 };
 
 export default config;

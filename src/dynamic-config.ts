@@ -8,6 +8,9 @@ export interface DynamicSettings {
     POLL_INTERVAL_MS?: number;
     SIZES?: string[];
     MAX_AGE_MINUTES?: number;
+    EXCLUDE_KEYWORDS?: string[];
+    AUTO_BUY_ENABLED?: boolean;
+    PANEL_PASSWORD?: string;
 }
 
 export class DynamicConfigManager {

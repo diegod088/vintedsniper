@@ -491,9 +491,8 @@ export class VintedAPI {
       console.log(`🔍 Extracción con selector: ${items.selector} (Encontrados: ${items.count})`);
 
       if (items.count === 0) return [];
-
       // Extraer datos de los elementos encontrados
-      const extractedItems = await page.evaluate((itemSelector) => {
+      const extractedItems = await page.evaluate((itemSelector: string) => {
         const results: any[] = [];
         let elements: any[] = [];
 
@@ -511,17 +510,16 @@ export class VintedAPI {
             if (forbiddenSection) return;
 
             // 2. Verificar si el contenedor inmediato tiene un título de "Sugeridos"
-            // Buscamos un header que sea hermano del contenedor de la cuadrícula o del item
+            // Solo subir 2 niveles para buscar títulos de sección (normalmente h2/h3)
             let isInsideRecommendation = false;
             let current = element;
-            // Solo subir 2 niveles para buscar títulos de sección (normalmente h2/h3)
             for (let i = 0; i < 3 && current; i++) {
               let sibling = current.previousElementSibling;
               while (sibling) {
                 const tag = sibling.tagName;
                 if (tag.match(/^H[1-4]$/)) {
                   const text = sibling.textContent?.toLowerCase() || '';
-                  if (text.includes('suggeriti') || text.includes('piacere') || text.includes('simili') || text.includes('similar')) {
+                  if (text.includes('suggeriti') || text.includes('piacere') || text.includes('simili') || text.includes('similar') || text.includes('consigliati')) {
                     isInsideRecommendation = true;
                     break;
                   }
@@ -548,23 +546,33 @@ export class VintedAPI {
             const overlay = element.querySelector('.new-item-box__overlay') || element.querySelector('a[title]');
             if (overlay) title = overlay.getAttribute('title') || '';
 
+            // Marca (Extraer de los textos secundarios si el overlay no es claro)
+            let brand = '';
+            const captionEls = Array.from(element.querySelectorAll('.web_ui__Text__caption'));
+            if (captionEls.length > 0) {
+              brand = (captionEls[captionEls.length - 1] as any).textContent?.trim() || '';
+            }
+
             if (!title) {
-              const titleEl = element.querySelector('[data-testid="item-card-title"]') ||
+              const titleEl: any = element.querySelector('[data-testid="item-card-title"]') ||
                 element.querySelector('.new-item-box__title') ||
+                element.querySelector('.web_ui__Text__caption') ||
                 element.querySelector('img')?.alt;
               title = (titleEl?.textContent || titleEl?.alt || '').trim();
             }
 
-            // Precio
+            // Precio (Vinted IT usa .web_ui__Text__title-standard)
             let price = 0;
             const priceEl = element.querySelector('.new-item-box__price') ||
               element.querySelector('[data-testid="item-card-price"]') ||
+              element.querySelector('.web_ui__Text__title-standard') ||
               element.querySelector('h3, .price, .amount');
 
             if (priceEl) {
               const priceText = priceEl.textContent || '';
-              const match = priceText.match(/(\d+[.,]\d+|\d+)/);
-              if (match) price = parseFloat(match[1].replace(',', '.'));
+              // Match para 12,50 € o 12.50
+              const match = priceText.replace(',', '.').match(/(\d+\.\d+|\d+)/);
+              if (match) price = parseFloat(match[1]);
             }
 
             // Fotos
@@ -587,7 +595,7 @@ export class VintedAPI {
                 id,
                 title,
                 price,
-                brand: element.querySelector('.new-item-box__title')?.textContent?.trim() || '',
+                brand: brand || (element.querySelector('.new-item-box__title') as any)?.textContent?.trim() || '',
                 url: link.href,
                 photo_url: photoUrls[0] || '',
                 photo_urls: photoUrls,
@@ -599,10 +607,10 @@ export class VintedAPI {
         });
 
         return results;
-      }, items.selector);
+      }, items.selector) as any[];
 
       console.log(`📦 Items extraídos (post-filtro): ${extractedItems.length}`);
-      extractedItems.forEach((item, index) => {
+      extractedItems.forEach((item: any, index: number) => {
         console.log(`  ${index + 1}. ${item.title} - ${item.price}€ (Fotos: ${item.photo_urls.length})`);
       });
 

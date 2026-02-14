@@ -1,5 +1,5 @@
 #!/bin/bash
-# Railway initialization script
+# Railway initialization script (Forced Update: 2026-02-14 03:02)
 # This script runs before the bot starts and loads cookies from environment variable
 
 echo "🚀 Inicializando bot en Railway como root..."

@@ -435,162 +435,156 @@ export class VintedAPI {
 
       // Extraer items del DOM
       const items = await page.evaluate(() => {
-        // Selector muy amplio para el contenedor de resultados
-        const catalogGrid = document.querySelector('[data-testid="catalog-grid"]') ||
+        // Encontrar el contenedor principal de resultados
+        // Vinted suele usar un ID o data-testid para el grid principal
+        const mainGrid = document.querySelector('[data-testid="catalog-grid"]') ||
           document.querySelector('.feed-grid') ||
-          document.querySelector('.catalog-content__main-grid') ||
-          document.querySelector('.catalog-items') ||
-          document.body;
+          document.querySelector('.catalog-content__main-grid');
 
-        // Selectores actualizados para cards de Vinted 2024/2025
-        const selectors = [
+        // Selectores de items
+        const itemSelectors = [
           '.feed-grid__item',
           '.new-item-box',
           '[data-testid="item-card"]',
-          '.ItemBox_root',
-          '.catalog-item',
-          'article[data-cy="item-card"]',
-          '.item-card'
+          '.ItemBox_root'
         ];
 
         let itemElements: Element[] = [];
         let foundSelector = '';
 
-        for (const selector of selectors) {
-          const found = Array.from(catalogGrid.querySelectorAll(selector));
-          if (found.length > 0) {
-            itemElements = found;
-            foundSelector = selector;
-            break;
+        if (mainGrid) {
+          for (const selector of itemSelectors) {
+            const found = Array.from(mainGrid.querySelectorAll(selector));
+            if (found.length > 0) {
+              itemElements = found;
+              foundSelector = selector;
+              break;
+            }
+          }
+        }
+
+        // Si no encontramos con el grid principal, buscar en todo el body pero con cuidado
+        if (itemElements.length === 0) {
+          for (const selector of itemSelectors) {
+            const found = Array.from(document.querySelectorAll(selector));
+            if (found.length > 0) {
+              itemElements = found;
+              foundSelector = selector;
+              break;
+            }
           }
         }
 
         // Fallback final: cualquier enlace que parezca un producto y tenga imagen
         if (itemElements.length === 0) {
-          itemElements = Array.from(catalogGrid.querySelectorAll('a[href*="/items/"]:has(img)'));
+          itemElements = Array.from(document.querySelectorAll('a[href*="/items/"]:has(img)'));
           foundSelector = 'a-with-img';
         }
 
         return {
           selector: foundSelector,
           count: itemElements.length,
-          html: catalogGrid.outerHTML.substring(0, 1000)
+          html: document.body.innerText.substring(0, 1000)
         };
       });
 
-      console.log(`🔍 Grid detectado con selector: ${items.selector}`);
-      console.log(`📊 Elementos encontrados: ${items.count}`);
+      console.log(`🔍 Extracción con selector: ${items.selector} (Encontrados: ${items.count})`);
 
-      // Si no encontramos elementos, devolver array vacío
-      if (items.count === 0) {
-        console.log('❌ No se encontraron elementos en el grid');
-        return [];
-      }
+      if (items.count === 0) return [];
 
       // Extraer datos de los elementos encontrados
       const extractedItems = await page.evaluate((itemSelector) => {
-        // Volver a obtener el contenedor lo más amplio posible
-        const root = document.querySelector('[data-testid="catalog-grid"]') ||
-          document.querySelector('.feed-grid') ||
-          document.querySelector('.catalog-content__main-grid') ||
-          document.body;
-
+        const results: any[] = [];
         let elements: any[] = [];
+
         if (itemSelector === 'a-with-img') {
-          elements = Array.from(root.querySelectorAll('a[href*="/items/"]:has(img)'));
+          elements = Array.from(document.querySelectorAll('a[href*="/items/"]:has(img)'));
         } else {
-          elements = Array.from(root.querySelectorAll(itemSelector));
+          elements = Array.from(document.querySelectorAll(itemSelector));
         }
 
-        const results: any[] = [];
-
-        elements.forEach((element: any, index) => {
+        elements.forEach((element: any) => {
           try {
-            // EXCLUSIÓN DE RECOMENDACIONES: Verificar padres hasta 5 niveles
-            let isRecommended = false;
-            let currentParent = element.parentElement;
-            for (let i = 0; i < 5 && currentParent; i++) {
-              const text = currentParent.textContent?.toLowerCase() || '';
-              const classes = currentParent.className.toString().toLowerCase();
-              if (text.includes('people also liked') ||
-                text.includes('suggested') ||
-                text.includes('similar') ||
-                text.includes('ti potrebbero piacere') ||
-                text.includes('suggeriti') ||
-                classes.includes('reco') ||
-                classes.includes('suggested')) {
-                // Solo marcar como recomendado si NO estamos en la primera sección
-                // (Vinted a veces pone el título arriba pero queremos los resultados debajo)
-                // Usamos un heuristic: si hay un h3/h2 de "Similar" cerca del padre
-                const header = currentParent.querySelector('h1, h2, h3, h4');
-                if (header && (header.textContent?.toLowerCase().includes('similar') ||
-                  header.textContent?.toLowerCase().includes('piacere'))) {
-                  isRecommended = true;
+            // VERIFICACIÓN DE RECOMENDACIONES (Filtrado Inteligente)
+            // 1. Si está en un contenedor que explícitamente es de recomendaciones
+            const forbiddenSection = element.closest('.user-items, .similar-items, [class*="reco"], [class*="suggested"]');
+            if (forbiddenSection) return;
+
+            // 2. Buscar si hay títulos de sección arriba de este elemento
+            // Subimos hasta encontrar un contenedor que sea hermano de un título
+            let isInsideRecommendation = false;
+            let current = element;
+            for (let i = 0; i < 6 && current; i++) {
+              // Buscar hermanos previos que sean títulos
+              let sibling = current.previousElementSibling;
+              while (sibling) {
+                const text = sibling.textContent?.toLowerCase() || '';
+                if (text.includes('suggeriti') || text.includes('piacere') || text.includes('simili') || text.includes('similar')) {
+                  isInsideRecommendation = true;
                   break;
                 }
+                sibling = sibling.previousElementSibling;
               }
-              currentParent = currentParent.parentElement;
+              if (isInsideRecommendation) break;
+              current = current.parentElement;
             }
 
-            if (isRecommended) return;
+            if (isInsideRecommendation) return;
 
-            // Buscar enlace al producto
+            // Búsqueda de datos dentro del elemento
             const link = element.querySelector('a[href*="/items/"]') || (element.tagName === 'A' ? element : null);
             if (!link || !link.href) return;
 
-            // Extraer título - Intentar el atributo 'title' del overlay que suele ser super completo
+            // ID
+            const idMatch = link.href.match(/\/items\/(\d+)/);
+            if (!idMatch) return;
+            const id = parseInt(idMatch[1]);
+
+            // Título (Overlay es el más fiable en Vinted IT)
             let title = '';
-            const overlay = element.querySelector('.new-item-box__overlay') || element.querySelector('a');
-            if (overlay && overlay.getAttribute('title')) {
-              title = overlay.getAttribute('title').trim();
-            }
+            const overlay = element.querySelector('.new-item-box__overlay') || element.querySelector('a[title]');
+            if (overlay) title = overlay.getAttribute('title') || '';
 
             if (!title) {
               const titleEl = element.querySelector('[data-testid="item-card-title"]') ||
                 element.querySelector('.new-item-box__title') ||
-                element.querySelector('.item-description__title') ||
                 element.querySelector('img')?.alt;
               title = (titleEl?.textContent || titleEl?.alt || '').trim();
             }
 
-            // Extraer precio
+            // Precio
             let price = 0;
             const priceEl = element.querySelector('.new-item-box__price') ||
               element.querySelector('[data-testid="item-card-price"]') ||
-              element.querySelector('.price, .amount, .cost, h3');
+              element.querySelector('h3, .price, .amount');
 
             if (priceEl) {
               const priceText = priceEl.textContent || '';
-              const priceMatch = priceText.match(/(\d+[.,]\d+|\d+)/);
-              if (priceMatch) {
-                price = parseFloat(priceMatch[1].replace(',', '.'));
-              }
+              const match = priceText.match(/(\d+[.,]\d+|\d+)/);
+              if (match) price = parseFloat(match[1].replace(',', '.'));
             }
 
-            // Extraer fotos
+            // Fotos
             const photoUrls: string[] = [];
-            const imgs = element.querySelectorAll('img');
-
-            imgs.forEach((img: any) => {
+            element.querySelectorAll('img').forEach((img: any) => {
               let src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.src;
               if (src && src.length > 20 && !src.includes('base64')) {
                 const isAd = src.toLowerCase().match(/(cms|asset|advertising|banner|logo|promo|marketing|avatar|placeholder|vinted\.png|cookie|onetrust)/i);
-                if (!isAd && (src.includes('vinted.net/t/') || src.includes('f800') || src.includes('large'))) {
+                if (!isAd) {
                   if (src.startsWith('//')) src = 'https:' + src;
+                  // Forzar alta resolución
+                  src = src.replace(/\d+x\d+/, 'f800');
                   if (!photoUrls.includes(src)) photoUrls.push(src);
                 }
               }
             });
 
             if (title && price > 0) {
-              const brand = element.querySelector('.new-item-box__title')?.textContent?.trim() ||
-                element.querySelector('[data-testid="item-card-brand"]')?.textContent?.trim() || '';
-
               results.push({
-                id: parseInt(link.href.match(/\/items\/(\d+)/)?.[1] || '0'),
-                title: title,
-                price: price,
-                brand: brand,
+                id,
+                title,
+                price,
+                brand: element.querySelector('.new-item-box__title')?.textContent?.trim() || '',
                 url: link.href,
                 photo_url: photoUrls[0] || '',
                 photo_urls: photoUrls,

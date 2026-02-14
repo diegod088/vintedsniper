@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { config } from './config';
 
 export interface Cookie {
   name: string;
@@ -61,10 +62,12 @@ export class CookieManager {
   }
 
   public toPuppeteerCookies(cookies: Cookie[]): any[] {
+    const currentDomain = new URL(config.VINTED_BASE_URL).hostname.replace('www', '');
     return cookies.map(c => ({
       name: c.name,
       value: c.value,
-      domain: c.domain || '.vinted.es',
+      // Si el dominio de la cookie es .vinted.it y estamos en .vinted.es, lo adaptamos
+      domain: c.domain?.includes('vinted') ? currentDomain : c.domain,
       path: c.path || '/',
       expires: c.expires || -1,
       httpOnly: c.httpOnly || false,

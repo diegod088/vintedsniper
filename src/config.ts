@@ -67,7 +67,7 @@ export const config: Config = {
   COOKIE_FILE: path.resolve(getEnvVar('COOKIE_FILE', 'cookies/vinted.json')),
   POLL_INTERVAL_MS: savedSettings.POLL_INTERVAL_MS || 4000,
   BACKOFF_DELAY_MS: 30000, // 30 segundos en caso de 429
-  VINTED_BASE_URL: 'https://www.vinted.it',
+  VINTED_BASE_URL: 'https://www.vinted.es',
   AUTO_BUY_ENABLED: process.env.AUTO_BUY_ENABLED === 'true',
   PANEL_PASSWORD: process.env.PANEL_PASSWORD,
   MAX_AGE_MINUTES: savedSettings.MAX_AGE_MINUTES || parseInt(getEnvVar('MAX_AGE_MINUTES', '60')),

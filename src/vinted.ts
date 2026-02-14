@@ -115,20 +115,31 @@ export class VintedAPI {
       const cookieHeader = this.cookieManager.toAxiosHeaders(cookies);
       const url = `${this.baseURL}/api/v2/catalog/items`;
 
-      console.log(`📡 Consultando API Vinted: ${url}?search_text=${encodeURIComponent(keyword)}`);
+      // Intentar extraer el token v_udt si existe para mandarlo como header x-v-udt
+      const vudtCookie = cookies.find(c => c.name === 'v_udt');
+
+      console.log(`📡 Consultando API Vinted (${this.baseURL}): ${url}?search_text=${encodeURIComponent(keyword)}`);
+
+      const headers: any = {
+        'Cookie': cookieHeader,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+        'x-app-version': '23.0.0',
+        'x-cross-site-proxy': 'false'
+      };
+
+      if (vudtCookie) {
+        headers['x-v-udt'] = vudtCookie.value;
+      }
 
       const response = await axios.get(url, {
         params: {
           search_text: keyword,
           order: 'newest_first',
-          per_page: '20'
+          per_page: '24'
         },
-        headers: {
-          'Cookie': cookieHeader,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*',
-          'x-app-version': '23.0.0' // Versión aproximada para evitar bloqueos
-        },
+        headers,
         timeout: 10000
       });
 

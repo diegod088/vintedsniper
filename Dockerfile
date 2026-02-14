@@ -82,6 +82,10 @@ RUN npm ci --only=production
 # We use absolute paths to be safe
 COPY --from=builder /app/dist /app/dist
 
+# Copy initialization script for Railway
+COPY railway-init.sh /app/railway-init.sh
+RUN chmod +x /app/railway-init.sh
+
 # Create necessary directories and set permissions
 RUN mkdir -p cookies logs data && chmod 777 cookies logs data
 
@@ -91,6 +95,5 @@ RUN groupadd -r botuser && useradd -r -g botuser -G audio,video botuser \
 
 USER botuser
 
-# Start the bot
-# Use absolute path to index.js to avoid any ambiguity
-CMD ["node", "/app/dist/index.js"]
+# Start the bot using the initialization script
+CMD ["/app/railway-init.sh"]

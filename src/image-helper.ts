@@ -39,10 +39,28 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
     await page.setViewport({ width: 1366, height: 768 });
 
     // Cargar cookies si existen
+    // Cargar cookies si existen
     const cookiePath = config.COOKIE_FILE;
     if (fs.existsSync(cookiePath)) {
-      const cookies = JSON.parse(fs.readFileSync(cookiePath, 'utf8'));
-      await page.setCookie(...cookies);
+      try {
+        const cookies = JSON.parse(fs.readFileSync(cookiePath, 'utf8'));
+        const sanitizedCookies = cookies.map((c: any) => ({
+          name: c.name,
+          value: c.value,
+          domain: c.domain,
+          path: c.path,
+          expires: c.expires,
+          httpOnly: c.httpOnly,
+          secure: c.secure,
+          sameSite: c.sameSite
+        })).filter((c: any) => c.name && c.value && c.domain);
+
+        if (sanitizedCookies.length > 0) {
+          await page.setCookie(...sanitizedCookies);
+        }
+      } catch (e) {
+        console.error('⚠️ Error cargando cookies:', e);
+      }
     }
 
     console.log(`🔍 Extrayendo detalles de la página: ${itemUrl}`);
@@ -186,8 +204,25 @@ export async function captureImageElement(itemUrl: string, existingBrowser?: Bro
 
     const cookiePath = config.COOKIE_FILE;
     if (fs.existsSync(cookiePath)) {
-      const cookies = JSON.parse(fs.readFileSync(cookiePath, 'utf8'));
-      await page.setCookie(...cookies);
+      try {
+        const cookies = JSON.parse(fs.readFileSync(cookiePath, 'utf8'));
+        const sanitizedCookies = cookies.map((c: any) => ({
+          name: c.name,
+          value: c.value,
+          domain: c.domain,
+          path: c.path,
+          expires: c.expires,
+          httpOnly: c.httpOnly,
+          secure: c.secure,
+          sameSite: c.sameSite
+        })).filter((c: any) => c.name && c.value && c.domain);
+
+        if (sanitizedCookies.length > 0) {
+          await page.setCookie(...sanitizedCookies);
+        }
+      } catch (e) {
+        console.error('⚠️ Error cargando cookies en captureImage:', e);
+      }
     }
 
     await page.goto(itemUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -226,29 +261,66 @@ export async function downloadImageWithPuppeteer(url: string, existingBrowser?: 
 
   const browser = existingBrowser || await puppeteer.launch({
     headless: 'new' as any,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
   });
 
   let page: Page | null = null;
   try {
     page = await browser.newPage();
+
+    // Configurar viewport
+    await page.setViewport({ width: 1366, height: 768 });
+
+    // CARGAR COOKIES (Crucial para pasar Cloudflare/Vinted protection)
+    const cookiePath = config.COOKIE_FILE;
+    if (fs.existsSync(cookiePath)) {
+      try {
+        const cookies = JSON.parse(fs.readFileSync(cookiePath, 'utf8'));
+        // Filtrar cookies inválidas si es necesario
+        const sanitizedCookies = cookies.map((c: any) => ({
+          name: c.name,
+          value: c.value,
+          domain: c.domain,
+          path: c.path,
+          expires: c.expires,
+          httpOnly: c.httpOnly,
+          secure: c.secure,
+          sameSite: c.sameSite
+        })).filter((c: any) => c.name && c.value && c.domain);
+
+        if (sanitizedCookies.length > 0) {
+          await page.setCookie(...sanitizedCookies);
+        }
+      } catch (e) {
+        console.error('⚠️ Error cargando cookies en downloadImage:', e);
+      }
+    }
+
     await page.setExtraHTTPHeaders({
       'Referer': 'https://www.vinted.it/',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     });
 
-    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    if (response && response.ok()) {
-      const buffer = await response.buffer();
-      await page.close();
-      if (!existingBrowser) await browser.close();
-      return buffer;
+    console.log(`📸 Puppeteer descargando: ${url.substring(0, 50)}...`);
+    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+
+    if (response) {
+      if (response.ok()) {
+        const buffer = await response.buffer();
+        console.log(`✅ Imagen descargada (${buffer.length} bytes)`);
+        await page.close();
+        if (!existingBrowser) await browser.close();
+        return buffer;
+      } else {
+        console.log(`❌ Error descarga Puppeteer: ${response.status()} ${response.statusText()}`);
+      }
     }
 
     await page.close();
     if (!existingBrowser) await browser.close();
     return null;
   } catch (error: any) {
+    console.error(`❌ Excepción descarga Puppeteer: ${error.message}`);
     if (page) await page.close();
     if (!existingBrowser) await browser.close();
     return null;

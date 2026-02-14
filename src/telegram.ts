@@ -99,47 +99,56 @@ export class TelegramBot {
   private async sendMultiplePhotos(item: VintedItem, caption: string, existingBrowser?: Browser): Promise<void> {
     try {
       const mediaGroup = [];
-      const maxPhotos = Math.min(item.photo_urls!.length, 8); // Reducir a 8 para evitar timeouts de Telegram
+      const maxPhotos = Math.min(item.photo_urls!.length, 8);
 
       for (let i = 0; i < maxPhotos; i++) {
         const photoUrl = item.photo_urls![i];
-        const imageBuffer = await downloadImageWithAllMethods(photoUrl, existingBrowser);
+        console.log(`📸 Procesando foto ${i + 1}/${maxPhotos}...`);
 
-        if (imageBuffer && imageBuffer.length > 0 && imageBuffer.length <= TelegramBot.MAX_PHOTO_BYTES) {
-          const formData = new FormData();
-          formData.append('photo', imageBuffer, {
-            filename: `photo_${i}.jpg`,
-            contentType: 'image/jpeg'
-          });
+        try {
+          const imageBuffer = await downloadImageWithAllMethods(photoUrl, existingBrowser);
 
-          // Retardo progresivo para no saturar
-          if (i > 0) await new Promise(r => setTimeout(r, 800));
+          if (imageBuffer && imageBuffer.length > 1000 && imageBuffer.length <= TelegramBot.MAX_PHOTO_BYTES) {
+            const formData = new FormData();
+            formData.append('photo', imageBuffer, {
+              filename: `photo_${i}.jpg`,
+              contentType: 'image/jpeg'
+            });
 
-          try {
-            const uploadResponse = await axios.post(`${this.baseURL}/sendPhoto`, formData, {
+            // Retardo para no saturar la API de Telegram
+            if (i > 0) await new Promise(r => setTimeout(r, 500));
+
+            const tgResponse: any = await axios.post(`${this.baseURL}/sendPhoto`, formData, {
               headers: formData.getHeaders(),
               params: {
                 chat_id: this.chatId,
-                caption: i === 0 ? caption : undefined,
+                caption: mediaGroup.length === 0 ? caption : undefined,
                 parse_mode: 'Markdown'
               },
-              timeout: 45000 // Aumentar timeout para subidas
+              timeout: 45000
             });
 
-            if (uploadResponse.data.ok) {
-              console.log(`✅ Foto ${i + 1} enviada: ${photoUrl.substring(0, 60)}...`);
+            if (tgResponse.data.ok) {
+              console.log(`✅ Foto ${i + 1} enviada`);
               mediaGroup.push({
                 type: 'photo',
-                media: uploadResponse.data.result.photo.file_id
+                media: tgResponse.data.result.photo.file_id
               });
             }
-          } catch (err: any) {
-            console.error(`❌ Error subiendo foto ${i + 1}: ${err.message}`);
+          } else {
+            console.log(`⚠️ Saltando foto ${i + 1} (archivo inválido o vacío)`);
           }
+        } catch (err: any) {
+          console.error(`❌ Error procesando foto ${i + 1}: ${err.message}`);
         }
       }
 
-      console.log(`✅ Se procesaron ${mediaGroup.length} fotos para el item`);
+      if (mediaGroup.length === 0) {
+        console.log('⚠️ No se pudo enviar ninguna de las múltiples fotos. Intentando single photo fallback.');
+        await this.sendSinglePhoto(item, caption, existingBrowser);
+      } else {
+        console.log(`✅ Se enviaron ${mediaGroup.length} fotos exitosamente`);
+      }
     } catch (error: any) {
       console.error('❌ Error enviando múltiples fotos:', error.message);
       throw new Error(`No se pudieron enviar fotos: ${error.message}`);

@@ -2,26 +2,27 @@
 # Railway initialization script
 # This script runs before the bot starts and loads cookies from environment variable
 
-echo "🚀 Inicializando bot en Railway..."
+echo "🚀 Inicializando bot en Railway como root..."
 
 # Crear directorios necesarios
 mkdir -p /app/cookies /app/logs /app/data
 echo "✅ Directorios creados"
 
-# Si existe la variable VINTED_COOKIES y el archivo no existe, crearlo
-if [ -n "$VINTED_COOKIES" ] && [ ! -f /app/cookies/vinted.json ]; then
-    echo "📝 Creando archivo de cookies desde variable de entorno..."
+# IMPORTANTE: Cambiar el dueño de las carpetas (especialmente volúmenes montados por Railway)
+echo "🔧 Ajustando permisos de volúmenes..."
+chown -R botuser:botuser /app/cookies /app/logs /app/data 2>/dev/null || true
+chmod -R 777 /app/cookies /app/logs /app/data 2>/dev/null || true
+
+# Si existe la variable VINTED_COOKIES, crear/actualizar el archivo
+if [ -n "$VINTED_COOKIES" ]; then
+    echo "📝 Actualizando cookies desde variable de entorno..."
     echo "$VINTED_COOKIES" > /app/cookies/vinted.json
-    echo "✅ Cookies guardadas en /app/cookies/vinted.json"
-elif [ -f /app/cookies/vinted.json ]; then
-    echo "✅ Archivo de cookies ya existe"
-else
-    echo "⚠️ No se encontró VINTED_COOKIES ni archivo de cookies existente"
+    chown botuser:botuser /app/cookies/vinted.json 2>/dev/null || true
+    chmod 666 /app/cookies/vinted.json 2>/dev/null || true
+    echo "✅ Cookies guardadas"
 fi
 
-# Verificar permisos
-chmod 644 /app/cookies/vinted.json 2>/dev/null || true
-
-echo "🎯 Iniciando bot..."
-# Ejecutar el bot
-exec node /app/dist/index.js
+echo "🎯 Iniciando bot como botuser..."
+# Ejecutar el bot como botuser pero manteniendo todas las variables de entorno
+# Usamos 'su -m' para mantener el entorno y '--' para pasar los argumentos correctamente
+exec su -m botuser -c "node /app/dist/index.js"

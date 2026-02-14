@@ -364,31 +364,24 @@ export class VintedAPI {
 
                   // Limpiar URL de parámetros innecesarios pero mantener la URL completa
                   if (photoUrl) {
-                    // Solo eliminar parámetros después de ?, no truncar la URL
-                    let cleanUrl = photoUrl.split('?')[0];
+                    let cleanUrl = photoUrl;
 
-                    // CRÍTICO: No forzar extensión .webp si no está presente. 
-                    // Muchas URLs de Vinted ya vienen correctas o redirigen bien.
-                    // Solo limpiar parámetros extra.
+                    // Si es de vinted.net, a veces el 310x430 da 404 pero f800 funciona
+                    if (cleanUrl.includes('vinted.net')) {
+                      // Opcional: registrar URL original
+                    }
 
-                    // if (!cleanUrl.match(/\.(webp|jpg|jpeg|png)$/i)) { ... } // DISABLED
+                    console.log(`     📸 URL encontrada: ${cleanUrl}`);
 
-                    console.log(`     📸 URL limpia: ${cleanUrl}`);
-                    console.log(`     📸 Validación: vinted.net=${cleanUrl.includes('vinted.net')}, images=${cleanUrl.includes('images')}, length=${cleanUrl.length}`);
+                    // Verificar que sea una URL de imagen válida
+                    const isVintedImage = cleanUrl.includes('vinted.net') ||
+                      cleanUrl.match(/\.(webp|jpg|jpeg|png)/i);
 
-                    // Verificar que sea una URL de imagen válida y completa
-                    // Aceptar URLs de vinted.net que contengan 'images' o terminen en .webp/.jpg/.jpeg/.png
-                    const isVintedImage = cleanUrl.includes('vinted.net') &&
-                      (cleanUrl.includes('images') ||
-                        cleanUrl.match(/\.(webp|jpg|jpeg|png)$/i));
-
-                    if (isVintedImage &&
-                      cleanUrl.length > 50 && // URLs de imágenes suelen ser largas
-                      !photoUrls.includes(cleanUrl)) {
+                    if (isVintedImage && cleanUrl.length > 20 && !photoUrls.includes(cleanUrl)) {
                       photoUrls.push(cleanUrl);
                       console.log(`     ✅ URL válida agregada: ${cleanUrl.substring(0, 80)}`);
                     } else {
-                      console.log(`     ❌ URL rechazada: isVintedImage=${isVintedImage}, length=${cleanUrl.length}, duplicate=${photoUrls.includes(cleanUrl)}`);
+                      console.log(`     ❌ URL rechazada o duplicada: ${cleanUrl.substring(0, 50)}`);
                     }
                   }
                 });

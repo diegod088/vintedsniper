@@ -15,3 +15,7 @@ seen.json
 debug-screenshot.png
 test_*.txt
 *.log
+
+# Railway and Import Secrets
+railway-env.json
+cookies_to_import.json

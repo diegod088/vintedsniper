@@ -89,15 +89,21 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
         '.item-photo img', '.item-photos img', '[data-testid="item-photo"] img',
         '[data-testid="item-photos"] img', '.ItemBox img', '.details-list img',
         'img[alt*="photo"]', 'img[alt*="Photo"]', 'img[itemprop="image"]',
-        '.item-description img', '.user-items img'
+        '.item-description img', '.user-items img', '.main-photo img'
       ];
 
       vintedSelectors.forEach(selector => {
         document.querySelectorAll(selector).forEach((img: any) => {
           // Intentar obtener la mejor resolución posible
-          const src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.src;
-          if (src && src.length > 50) {
-            urls.add(src.split('?')[0]);
+          let src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.src;
+          if (src && src.length > 20) {
+            // No limpiar totalmente el query param si es de vinted.net, a veces son necesarios
+            // Pero si termina en .webp o similar, podemos intentar limpiar
+            if (src.includes('vinted.net')) {
+              // Intentar forzar resolución alta si es una miniatura
+              src = src.replace(/\/t\/\d+_\d+_[^/]+\/\d+x\d+\//, (match: string) => match.replace(/\d+x\d+/, 'f800'));
+            }
+            urls.add(src);
           }
         });
       });
@@ -106,10 +112,9 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
       if (urls.size === 0) {
         document.querySelectorAll('img').forEach((img: any) => {
           const src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.src;
-          // Filtrar iconos y avatares por tamaño o URL sospechosa
-          if (src && src.length > 50 && !src.includes('avatar') && !src.includes('icon') && !src.includes('placeholder')) {
-            if (img.naturalWidth > 200 || src.includes('f800') || src.includes('large')) {
-              urls.add(src.split('?')[0]);
+          if (src && src.length > 20 && !src.includes('avatar') && !src.includes('icon') && !src.includes('placeholder')) {
+            if (img.naturalWidth > 150 || src.includes('f800') || src.includes('large') || src.includes('images')) {
+              urls.add(src);
             }
           }
         });
@@ -122,7 +127,8 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
     description = await page.evaluate(() => {
       const selectors = [
         '[data-testid="item-description"]', '.item-description',
-        '.details-list__item-description', '[itemprop="description"]'
+        '.details-list__item-description', '[itemprop="description"]',
+        '.item-description__text'
       ];
       for (const sel of selectors) {
         const el = document.querySelector(sel);
@@ -131,9 +137,10 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
       return undefined;
     });
 
-    // Extraer tiempo de publicación
+    // Extraer tiempo de publicación - MEJORADO para evitar "Colore"
     timeAgo = await page.evaluate(() => {
       const items = Array.from(document.querySelectorAll('.details-list__item'));
+
       const timeKeywords = [
         'caricato', 'uploaded', 'aggiunto', 'pubblicato', 'posted', 'publié', 'subido',
         'minuti', 'ore', 'giorni', 'settimane', 'mesi', 'anni',
@@ -143,23 +150,25 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
       ];
 
       for (const item of items) {
-        const title = item.querySelector('.details-list__item-title')?.textContent?.toLowerCase() || '';
-        const value = item.querySelector('.details-list__item-value')?.textContent?.trim() || '';
+        const titleEl = item.querySelector('.details-list__item-title');
+        const valueEl = item.querySelector('.details-list__item-value');
+
+        if (!titleEl || !valueEl) continue;
+
+        const title = titleEl.textContent?.toLowerCase() || '';
+        const value = valueEl.textContent?.trim() || '';
+
+        // Ignorar campos conocidos que no son tiempo
+        if (['brand', 'marca', 'talla', 'taille', 'size', 'condizioni', 'estado', 'état', 'colore', 'color', 'couleur', 'posizione', 'location'].includes(title)) {
+          continue;
+        }
 
         // Si el título indica carga o si el valor contiene palabras de tiempo
         if (title.includes('caricato') || title.includes('uploaded') || title.includes('aggiunto') ||
+          title.includes('tempo') || title.includes('time') ||
           timeKeywords.some(k => value.toLowerCase().includes(k))) {
-          // Asegurarse de que no sea un tag genérico como "Brand" o "Talla"
-          if (!['brand', 'marca', 'talla', 'taille', 'size', 'condizioni', 'estado', 'état'].includes(title)) {
-            return value;
-          }
+          return value;
         }
-      }
-
-      // Fallback: buscar el último elemento pero solo si contiene palabras de tiempo
-      const lastValue = document.querySelector('.details-list__item:last-child .details-list__item-value')?.textContent?.trim() || '';
-      if (timeKeywords.some(k => lastValue.toLowerCase().includes(k))) {
-        return lastValue;
       }
 
       return undefined;

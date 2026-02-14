@@ -22,31 +22,51 @@ export class ItemCache {
 
   private loadCache(): void {
     try {
-      // Asegurar que el directorio exista
+      // Asegurar que el directorio exista y sea accesible
       const dir = path.dirname(this.cacheFile);
       if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+        console.log(`📂 Creando directorio de cache: ${dir}`);
+        fs.mkdirSync(dir, { recursive: true, mode: 0o777 });
       }
 
       if (fs.existsSync(this.cacheFile)) {
-        const data = JSON.parse(fs.readFileSync(this.cacheFile, 'utf8'));
-        this.cache = new Map(data);
-        console.log(`📂 Cache cargado: ${this.cache.size} items`);
+        const content = fs.readFileSync(this.cacheFile, 'utf8');
+        if (content.trim()) {
+          const data = JSON.parse(content);
+          this.cache = new Map(data);
+          console.log(`📂 Cache cargado: ${this.cache.size} items`);
+        } else {
+          console.log('📂 Archivo de cache vacío, iniciando nuevo');
+          this.cache = new Map();
+        }
       } else {
-        console.log('📂 Creando nuevo cache...');
+        console.log('📂 No se encontró archivo de cache, se creará al guardar.');
       }
     } catch (error: any) {
       console.error('❌ Error cargando cache:', error.message);
+      if (error.code === 'EACCES') {
+        console.error('👉 Tip: Revisa los permisos de la carpeta "data" o el archivo "cache.json"');
+      }
       this.cache = new Map();
     }
   }
 
   private saveCache(): void {
     try {
+      const dir = path.dirname(this.cacheFile);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true, mode: 0o777 });
+      }
+
       const data = JSON.stringify(Array.from(this.cache.entries()));
-      fs.writeFileSync(this.cacheFile, data, 'utf8');
+      fs.writeFileSync(this.cacheFile, data, { encoding: 'utf8', mode: 0o666 });
     } catch (error: any) {
       console.error('❌ Error guardando cache:', error.message);
+      if (error.code === 'EACCES') {
+        console.error('👉 Error de permisos al escribir cache en Railway. Intentando usar /tmp como fallback...');
+        // Opcional: Fallback a /tmp si falla en Railway
+        // this.cacheFile = path.join('/tmp', path.basename(this.cacheFile));
+      }
     }
   }
 

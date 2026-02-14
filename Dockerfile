@@ -86,15 +86,16 @@ COPY --from=builder /app/dist /app/dist
 COPY railway-init.sh /app/railway-init.sh
 RUN chmod +x /app/railway-init.sh
 
-# Create necessary directories and set permissions
-RUN mkdir -p cookies logs data && chmod 777 cookies logs data
+# Create necessary directories and set permissions BEFORE creating the user
+RUN mkdir -p /app/cookies /app/logs /app/data /tmp/puppeteer_user_data /tmp/crash_dumps \
+    && chmod -R 777 /app/cookies /app/logs /app/data /tmp/puppeteer_user_data /tmp/crash_dumps
 
 # Run as non-root user
 RUN groupadd -r botuser && useradd -r -g botuser -G audio,video botuser \
     && chown -R botuser:botuser /app \
-    && chown -R botuser:botuser /app/cookies /app/logs /app/data
+    && chown -R botuser:botuser /app/cookies /app/logs /app/data /tmp
 
-USER botuser
+# USER botuser
 
 # Start the bot using the initialization script
 CMD ["/app/railway-init.sh"]

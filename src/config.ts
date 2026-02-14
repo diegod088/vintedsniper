@@ -24,6 +24,9 @@ export interface Config {
 function getEnvVar(key: string, defaultValue?: string): string {
   const value = process.env[key];
   if (!value && !defaultValue) {
+    console.error(`\n❌ ERROR: Falta la variable de entorno obligatoria: ${key}`);
+    console.error(`👉 Si estás en Railway, ve a 'Settings' > 'Variables' y añádela.`);
+    console.error(`👉 Si estás local, añádela a tu archivo .env\n`);
     throw new Error(`Missing required environment variable: ${key}`);
   }
   return value || defaultValue || '';

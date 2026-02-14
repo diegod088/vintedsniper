@@ -31,21 +31,23 @@ async function captureCookies(): Promise<void> {
   console.log('🚀 Iniciando navegador...');
 
   const browser = await puppeteer.launch({
-    headless: false, // Mostrar navegador para login manual si falla automático
+    headless: false,
     args: [
-      '--no-sandbox',
+      '--start-maximized', // Maximizar ventana
+      '--disable-blink-features=AutomationControlled', // Intentar ocultar automatización
+      '--no-sandbox', // Necesario en algunos sistemas Linux
       '--disable-setuid-sandbox',
-      '--window-size=1280,720',
     ],
+    defaultViewport: null, // Importante para que --start-maximized funcione
   });
 
   try {
     const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 720 });
+    // await page.setViewport({ width: 1280, height: 720 }); // Comentado para usar tamaño completo
 
     // Navegar a Vinted
-    console.log('📄 Cargando Vinted.es...');
-    await page.goto('https://www.vinted.es/', { waitUntil: 'networkidle2' });
+    console.log('📄 Cargando Vinted.it...');
+    await page.goto('https://www.vinted.it/', { waitUntil: 'networkidle2' });
 
     // Esperar un momento
     await page.waitForTimeout(2000);
@@ -55,6 +57,7 @@ async function captureCookies(): Promise<void> {
       'a[href*="login"]',
       'button:has-text("Iniciar sesión")',
       'button:has-text("Entrar")',
+      'button:has-text("Accedi")', // Añadido para IT
       '[data-testid="login-button"]',
     ];
 
@@ -75,10 +78,15 @@ async function captureCookies(): Promise<void> {
 
     if (!loginClicked) {
       console.log('⚠️ No se encontró botón de login. Intentando navegar directamente...');
-      await page.goto('https://www.vinted.es/login', { waitUntil: 'networkidle2' });
+      try {
+        await page.goto('https://www.vinted.it/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
+      } catch (e: any) {
+        console.warn(`⚠️ La navegación automática falló (${e.message}).`);
+        console.warn('👉 Por favor, escribe "https://www.vinted.it/login" en la barra de direcciones del navegador o haz clic en "Accedi/Entrar" manualmente.');
+      }
     }
 
-    // Esperar formulario de login
+    // Esperar formulario de login (solo si estamos en la página correcta, si no, usuario navega)
     await page.waitForTimeout(3000);
 
     // Intentar login automático
@@ -126,9 +134,9 @@ async function captureCookies(): Promise<void> {
     console.log('');
     console.log('⏳ Esperando inicio de sesión...');
     console.log('Si el login automático falló, inicia sesión MANUALMENTE en el navegador.');
-    
+
     const confirm = await question('✅ ¿Has iniciado sesión correctamente? (s/n): ');
-    
+
     if (confirm.toLowerCase() !== 's') {
       console.log('❌ Cancelado por el usuario');
       return;
@@ -163,7 +171,7 @@ async function captureCookies(): Promise<void> {
     // Verificar sesión haciendo una petición
     console.log('🔍 Verificando sesión...');
     await page.goto('https://www.vinted.es/inbox', { waitUntil: 'networkidle2' });
-    
+
     const url = page.url();
     if (url.includes('/inbox')) {
       console.log('✅ ¡Sesión verificada correctamente!');

@@ -188,29 +188,40 @@ export class VintedAPI {
   /**
    * Intenta obtener items scrapeando el HTML con Axios (más ligero que Puppeteer y menos bloqueado)
    */
-  private async fetchHTMLViaAxios(keyword: string): Promise<VintedItem[]> {
+  private async fetchHTMLViaAxios(keyword: string, useCookies: boolean = true): Promise<VintedItem[]> {
     try {
       const url = `${this.baseURL}/catalog?search_text=${encodeURIComponent(keyword)}&order=newest_first`;
-      const cookies = this.cookieManager.load();
-      const cookieHeader = this.cookieManager.toAxiosHeaders(cookies);
+      const cookies = useCookies ? this.cookieManager.load() : [];
+      const cookieHeader = useCookies ? this.cookieManager.toAxiosHeaders(cookies) : '';
 
-      console.log(`📡 Consultando HTML vía Axios: ${url}`);
+      console.log(`📡 Consultando HTML vía Axios (${useCookies ? 'con' : 'SIN'} cookies): ${url}`);
+
+      const headers: any = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      };
+
+      if (useCookies && cookieHeader) {
+        headers['Cookie'] = cookieHeader;
+      }
 
       const response = await axios.get(url, {
-        headers: {
-          'Cookie': cookieHeader,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        },
-        timeout: 15000
+        headers,
+        timeout: 15000,
+        validateStatus: (status) => status < 500 // Permitir 403 para manejarlo nosotros
       });
 
+      if (response.status === 403) {
+        console.error(`🛑 Axios HTML recibió 403 (${useCookies ? 'con' : 'SIN'} cookies)`);
+        return [];
+      }
+
       const html = response.data;
-      if (html.includes('id="challenge-platform"')) {
-        console.error('🛑 Axios HTML detectó Cloudflare Block');
+      if (typeof html === 'string' && (html.includes('id="challenge-platform"') || html.includes('captcha'))) {
+        console.error('🛑 Axios HTML detectó Cloudflare Challenge/Captcha');
         return [];
       }
 
@@ -221,12 +232,9 @@ export class VintedAPI {
 
       // Si no encontramos el JSON JSON, intentamos un regex más agresivo para los items
       // (En Vinted .es/.it, los items a veces están en el objeto de 'items' del estado inicial)
-      if (html.includes('item-card')) {
+      if (typeof html === 'string' && html.includes('item-card')) {
         console.log('✅ HTML obtenido correctamente (contiene item-card)');
-        // Por simplicidad en este paso, si detectamos que el HTML es válido pero no podemos parsear el JSON complejo,
-        // devolvemos un array vacío para que Puppeteer intente el parseo visual fino como última instancia,
-        // PERO habiendo confirmado que la IP NO está bloqueada para este request.
-        // No obstante, intentemos extraer algo básico.
+        // TODO: Implementar un parser regex básico si es posible para no depender de Puppeteer
       }
 
       return []; // Devolvemos vacío para forzar fallback o implementar parser ligero después
@@ -247,17 +255,27 @@ export class VintedAPI {
       console.log('⚠️ Error en API, procediendo a fallback de Axios HTML...');
     }
 
-    // 2. Intentar con Axios HTML (menos pesado que Puppeteer)
+    // 2. Intentar con Axios HTML (CON cookies)
     try {
-      const axiosItems = await this.fetchHTMLViaAxios(keyword);
+      const axiosItems = await this.fetchHTMLViaAxios(keyword, true);
       if (axiosItems.length > 0) {
         return axiosItems;
       }
     } catch (axiosError) {
-      console.log('⚠️ Error en Axios HTML, procediendo a fallback de browser...');
+      console.log('⚠️ Error en Axios HTML (con cookies), intentando SIN cookies...');
     }
 
-    // 3. Fallback final: Puppeteer
+    // 3. Intentar con Axios HTML (SIN cookies - a veces el bloque es por cookies obsoletas/mismatch)
+    try {
+      const axiosNoCookiesItems = await this.fetchHTMLViaAxios(keyword, false);
+      if (axiosNoCookiesItems.length > 0) {
+        return axiosNoCookiesItems;
+      }
+    } catch (axiosNoCookiesError) {
+      console.log('⚠️ Error en Axios HTML (sin cookies), procediendo a fallback de browser...');
+    }
+
+    // 4. Fallback final: Puppeteer
     const browser = await this.getBrowser();
 
     try {

@@ -435,292 +435,152 @@ export class VintedAPI {
 
       // Extraer items del DOM
       const items = await page.evaluate(() => {
-        // Intentar diferentes selectores para Vinted Italia
+        // Encontrar el contenedor principal de resultados (evita secciones laterales o de sugerencias)
+        const catalogGrid = document.querySelector('[data-testid="catalog-grid"]') ||
+          document.querySelector('.feed-grid') ||
+          document.querySelector('.catalog-items') ||
+          document.body;
+
+        // Intentar diferentes selectores para los cards de items dentro del grid
         const selectors = [
-          '.ItemBox_root',
           '[data-testid="item-card"]',
+          '.ItemBox_root',
           '.feed-grid .item',
           '.catalog-item',
-          '.ItemBox',
-          'article[data-cy="item-card"]',
-          '.item-card',
-          '.grid-item',
-          '.product-card',
-          'a[href*="/items/"]' // Cualquier enlace que vaya a un item
+          'article[data-cy="item-card"]'
         ];
 
-        let itemElements: NodeListOf<Element> | null = null;
+        let itemElements: Element[] = [];
         let foundSelector = '';
 
         for (const selector of selectors) {
-          itemElements = document.querySelectorAll(selector);
-          if (itemElements.length > 0) {
+          const found = Array.from(catalogGrid.querySelectorAll(selector));
+          if (found.length > 0) {
+            itemElements = found;
             foundSelector = selector;
             break;
           }
         }
 
-        // Si no encontramos nada con selectores específicos, buscar todos los enlaces a items
-        if (!itemElements || itemElements.length === 0) {
-          itemElements = document.querySelectorAll('a[href*="/items/"]');
-          foundSelector = 'a[href*="/items/"]';
+        // Si no encontramos nada con selectores específicos, buscar selectores genéricos de cards
+        if (itemElements.length === 0) {
+          itemElements = Array.from(catalogGrid.querySelectorAll('.item-card, .grid-item, .product-card'));
+          foundSelector = 'generic-card';
         }
 
         return {
           selector: foundSelector,
-          count: itemElements ? itemElements.length : 0,
-          html: document.documentElement.outerHTML.substring(0, 5000) // Primeros 5000 chars del HTML
+          count: itemElements.length,
+          html: catalogGrid.outerHTML.substring(0, 5000)
         };
       });
 
-      console.log(`🔍 Selector usado: ${items.selector}`);
+      console.log(`🔍 Grid detectado con selector: ${items.selector}`);
       console.log(`📊 Elementos encontrados: ${items.count}`);
-      console.log(`📄 HTML preview: ${items.html.substring(0, 500)}...`);
 
       // Si no encontramos elementos, devolver array vacío
       if (items.count === 0) {
-        console.log('❌ No se encontraron elementos para extraer');
+        console.log('❌ No se encontraron elementos en el grid catalog');
         return [];
       }
 
       // Extraer datos de los elementos encontrados
-      const extractedItems = await page.evaluate((selector) => {
-        const elements = document.querySelectorAll(selector);
+      const extractedItems = await page.evaluate((itemSelector) => {
+        const catalogGrid = document.querySelector('[data-testid="catalog-grid"]') ||
+          document.querySelector('.feed-grid') ||
+          document.querySelector('.catalog-items') ||
+          document.body;
+
+        const elements = Array.from(catalogGrid.querySelectorAll(itemSelector));
         const results: any[] = [];
 
         elements.forEach((element: any, index) => {
           try {
-            // Si es un enlace, buscar información en el elemento o sus padres
-            if (element.tagName === 'A' && element.href) {
-              // Buscar título y precio en el enlace o sus hijos
-              let title = '';
-              let price = 0;
-
-              // Intentar diferentes fuentes para el título
-              title = element.textContent ||
-                element.title ||
-                element.getAttribute('aria-label') ||
-                element.querySelector('img')?.alt || '';
-
-              // Extraer URL de la foto con múltiples métodos mejorados
-              let photoUrls: string[] = [];
-
-              console.log(`     🔍 Extrayendo imágenes del item ${index + 1}...`);
-
-              // Buscar todas las imágenes en el elemento actual y padres
-              let imgs = element.querySelectorAll('img');
-
-              // Si no hay imágenes, buscar en elementos padre
-              if (imgs.length === 0) {
-                let parent = element.parentElement;
-                let attempts = 0;
-                while (parent && attempts < 5) {
-                  imgs = parent.querySelectorAll('img');
-                  if (imgs.length > 0) {
-                    console.log(`     📸 Encontradas ${imgs.length} imágenes en elemento padre (nivel ${attempts + 1})`);
-                    break;
-                  }
-                  parent = parent.parentElement;
-                  attempts++;
-                }
-              } else {
-                console.log(`     📸 Encontradas ${imgs.length} imágenes en elemento actual`);
-              }
-
-              // Extraer URLs de todas las imágenes encontradas
-              if (imgs.length > 0) {
-                imgs.forEach((img: any, imgIndex: number) => {
-                  // Intentar múltiples atributos para obtener la URL
-                  let photoUrl = img.src ||
-                    img.getAttribute('data-src') ||
-                    img.getAttribute('data-lazy') ||
-                    img.getAttribute('data-original') ||
-                    img.getAttribute('data-image-src') ||
-                    img.getAttribute('data-lazy-src') ||
-                    '';
-
-                  // Intentar extraer de srcset si está disponible
-                  if (!photoUrl && img.srcset) {
-                    const srcsetParts = img.srcset.split(',');
-                    if (srcsetParts.length > 0) {
-                      // Tomar la URL de mayor resolución (última en srcset)
-                      const lastSrcset = srcsetParts[srcsetParts.length - 1].trim();
-                      photoUrl = lastSrcset.split(' ')[0];
-                    }
-                  }
-
-                  // Si aún no hay URL, intentar desde srcset del primer elemento
-                  if (!photoUrl && img.getAttribute('srcset')) {
-                    const srcset = img.getAttribute('srcset') || '';
-                    const srcsetParts = srcset.split(',');
-                    if (srcsetParts.length > 0) {
-                      // Tomar la última (mayor resolución)
-                      const lastPart = srcsetParts[srcsetParts.length - 1].trim();
-                      photoUrl = lastPart.split(' ')[0];
-                    }
-                  }
-
-                  // Intentar extraer de background-image del padre
-                  if (!photoUrl) {
-                    let parent = img.parentElement;
-                    let attempts = 0;
-                    while (parent && attempts < 3 && !photoUrl) {
-                      if (parent.style && parent.style.backgroundImage) {
-                        const bgImage = parent.style.backgroundImage;
-                        const match = bgImage.match(/url\(['"]?([^'"]+)['"]?\)/);
-                        if (match) {
-                          photoUrl = match[1];
-                          console.log(`     📸 URL extraída de background-image`);
-                        }
-                      }
-                      parent = parent.parentElement;
-                      attempts++;
-                    }
-                  }
-
-                  console.log(`     📸 Imagen ${imgIndex + 1}: URL raw = ${photoUrl ? photoUrl : 'NO ENCONTRADA'}`);
-
-                  // Convertir URLs relativas a absolutas
-                  if (photoUrl && !photoUrl.startsWith('http')) {
-                    if (photoUrl.startsWith('//')) {
-                      photoUrl = `https:${photoUrl}`;
-                    } else if (photoUrl.startsWith('/')) {
-                      photoUrl = `https://www.vinted.it${photoUrl}`;
-                    } else {
-                      photoUrl = `https://www.vinted.it/${photoUrl}`;
-                    }
-                    console.log(`     📸 URL convertida a absoluta: ${photoUrl.substring(0, 80)}`);
-                  }
-
-                  // Limpiar URL de parámetros innecesarios pero mantener la URL completa
-                  if (photoUrl) {
-                    let cleanUrl = photoUrl;
-
-                    // Si es de vinted.net, a veces el 310x430 da 404 pero f800 funciona
-                    if (cleanUrl.includes('vinted.net')) {
-                      // Opcional: registrar URL original
-                    }
-
-                    console.log(`     📸 URL encontrada: ${cleanUrl}`);
-
-                    // Verificar que sea una URL de imagen válida y NO sea un anuncio/logo
-                    const isVintedImage = cleanUrl.includes('vinted.net/t/') ||
-                      (cleanUrl.includes('vinted.net') && (cleanUrl.match(/\.(webp|jpg|jpeg|png)/i) || cleanUrl.includes('f800')));
-
-                    const isAdOrLogo = cleanUrl.toLowerCase().match(/(cms|asset|advertising|banner|logo|promo|marketing|avatar|placeholder|vinted\.png|cookie|onetrust)/i);
-
-                    if (isVintedImage && !isAdOrLogo && cleanUrl.length > 20 && !photoUrls.includes(cleanUrl)) {
-                      photoUrls.push(cleanUrl);
-                      console.log(`     ✅ URL válida agregada: ${cleanUrl.substring(0, 80)}`);
-                    } else if (isAdOrLogo) {
-                      console.log(`     🚫 URL descartada (Publicidad/Logo): ${cleanUrl.substring(0, 50)}`);
-                    } else {
-                      console.log(`     ❌ URL rechazada o duplicada: ${cleanUrl.substring(0, 50)}`);
-                    }
-                  }
-                });
-              } else {
-                console.log(`     ⚠️ No se encontraron imágenes para el item ${index + 1}`);
-              }
-
-              console.log(`Item ${index + 1}: title="${title.substring(0, 50)}...", price=${price}`);
-              console.log(`     📸 Buscando imágenes...`);
-              console.log(`     📸 Elemento tiene imágenes directas: ${element.querySelectorAll('img').length}`);
-              console.log(`     📸 URLs encontradas: ${photoUrls.length} fotos`);
-              if (photoUrls.length > 0) {
-                photoUrls.forEach((url, i) => {
-                  console.log(`        📸 Foto ${i + 1}: ${url.substring(0, 60)}...`);
-                });
-              }
-
-              // Buscar precio en el texto del elemento o sus padres
-              let priceElement = element;
-              let attempts = 0;
-
-              while (priceElement && attempts < 5) {
-                const text = priceElement.textContent || '';
-                const priceMatch = text.match(/(\d+,\d+|\d+\.\d+|\d+)\s*€/);
-                if (priceMatch) {
-                  price = parseFloat(priceMatch[1].replace(',', '.'));
-                  break;
-                }
-
-                // Buscar en elementos con precios específicos
-                const priceSelectors = ['.price', '.amount', '[data-testid="price"]', '.cost'];
-                for (const sel of priceSelectors) {
-                  const priceEl = priceElement.querySelector(sel);
-                  if (priceEl) {
-                    const priceText = priceEl.textContent || '';
-                    const priceMatch = priceText.match(/(\d+,\d+|\d+\.\d+|\d+)\s*€/);
-                    if (priceMatch) {
-                      price = parseFloat(priceMatch[1].replace(',', '.'));
-                      break;
-                    }
-                  }
-                }
-
-                priceElement = priceElement.parentElement;
-                attempts++;
-              }
-
-              console.log(`Item ${index + 1}: title="${title.substring(0, 50)}...", price=${price}, photos=${photoUrls.length}`);
-
-              if (title && price > 0) {
-                // Intentar extraer marca, talla y estado si están embebidos en el título (formato Vinted ARIA/labels)
-                let brand = '';
-                let size = '';
-                let condition = '';
-
-                // Patrones comunes en Vinted IT/ES/FR
-                const brandMatch = title.match(/brand:\s*([^,]+)/i);
-                const sizeMatch = title.match(/(?:taglia|talla|taille|size):\s*([^,]+)/i);
-                const conditionMatch = title.match(/(?:condizioni|estado|état|condition):\s*([^,]+)/i);
-
-                if (brandMatch) brand = brandMatch[1].trim();
-                if (sizeMatch) size = sizeMatch[1].trim();
-                if (conditionMatch) condition = conditionMatch[1].trim();
-
-                results.push({
-                  id: parseInt(element.href.match(/\/items\/(\d+)/)?.[1] || '0'),
-                  title: title.trim(),
-                  price: price,
-                  currency: 'EUR',
-                  brand: brand,
-                  size: size,
-                  condition: condition,
-                  url: element.href,
-                  photo_url: photoUrls[0] || '', // Mantener compatibilidad con código existente
-                  photo_urls: photoUrls, // Nuevo campo con múltiples fotos
-                  seller: {
-                    id: 0,
-                    login: '',
-                    business: false,
-                    feedback_reputation: 0,
-                    feedback_count: 0
-                  },
-                  created_at: new Date().toISOString(),
-                });
+            // VERIFICACIÓN CRUCIAL: ¿Está este elemento dentro de una sección de "Sugeridos" o "Anuncios"?
+            const parentSection = element.closest('section, div[class*="similar"], div[class*="suggested"], div[class*="liked"]');
+            if (parentSection) {
+              const sectionText = parentSection.textContent?.toLowerCase() || '';
+              if (sectionText.includes('people also liked') ||
+                sectionText.includes('suggested') ||
+                sectionText.includes('similar') ||
+                sectionText.includes('ti potrebbero piacere')) {
+                return; // Ignorar recomendaciones
               }
             }
+
+            // Buscar enlace al producto (elemento base para ID y URL)
+            const link = element.querySelector('a[href*="/items/"]') || (element.tagName === 'A' ? element : null);
+            if (!link || !link.href) return;
+
+            // Extraer título - Buscar lo más descriptivo primero
+            let title = '';
+            const titleEl = element.querySelector('[data-testid="item-card-title"]') ||
+              element.querySelector('.item-description__title') ||
+              element.querySelector('img')?.alt ||
+              element.querySelector('a')?.title;
+
+            title = (titleEl?.textContent || titleEl?.alt || titleEl?.title || '').trim();
+            if (!title) title = link.textContent?.split('€')[0]?.trim() || '';
+
+            // Extraer precio - Solo dentro del card actual
+            let price = 0;
+            const priceEl = element.querySelector('[data-testid="item-card-price"]') ||
+              element.querySelector('.price, .amount, [data-testid="price"], .cost');
+
+            if (priceEl) {
+              const priceText = priceEl.textContent || '';
+              const priceMatch = priceText.match(/(\d+[.,]\d+|\d+)/);
+              if (priceMatch) {
+                price = parseFloat(priceMatch[1].replace(',', '.'));
+              }
+            }
+
+            // Extraer fotos - ESTRICTAMENTE dentro de este card
+            const photoUrls: string[] = [];
+            const imgs = element.querySelectorAll('img');
+
+            imgs.forEach((img: any) => {
+              let src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.src;
+              if (src && src.length > 20 && !src.includes('base64')) {
+                // Filtrar anuncios/logos (usando la lógica ya implementada)
+                const isAd = src.toLowerCase().match(/(cms|asset|advertising|banner|logo|promo|marketing|avatar|placeholder|vinted\.png|cookie|onetrust)/i);
+                if (!isAd && (src.includes('vinted.net/t/') || src.includes('f800') || src.includes('large'))) {
+                  if (src.startsWith('//')) src = 'https:' + src;
+                  if (!photoUrls.includes(src)) photoUrls.push(src);
+                }
+              }
+            });
+
+            if (title && price > 0) {
+              // Extraer otros metadatos (marca, talla)
+              const brand = element.querySelector('[data-testid="item-card-brand"]')?.textContent?.trim() || '';
+              const size = element.querySelector('.taglia, .size, [data-testid="item-card-size"]')?.textContent?.trim() || '';
+
+              results.push({
+                id: parseInt(link.href.match(/\/items\/(\d+)/)?.[1] || '0'),
+                title: title,
+                price: price,
+                currency: 'EUR',
+                brand: brand,
+                size: size,
+                url: link.href,
+                photo_url: photoUrls[0] || '',
+                photo_urls: photoUrls,
+                seller: { id: 0, login: 'Unknown', business: false },
+                created_at: new Date().toISOString()
+              });
+            }
           } catch (e) {
-            console.log(`❌ Error procesando elemento ${index}:`, e);
+            console.log(`❌ Error procesando ítem Puppeteer ${index}:`, e);
           }
         });
 
         return results;
       }, items.selector);
 
-      console.log(`📦 Items extraídos: ${extractedItems.length}`);
+      console.log(`📦 Items extraídos (post-filtro): ${extractedItems.length}`);
       extractedItems.forEach((item, index) => {
-        console.log(`  ${index + 1}. ${item.title} - ${item.price}€`);
-        if (item.photo_url) {
-          console.log(`     📸 Foto principal: ${item.photo_url.substring(0, 100)}...`);
-        } else {
-          console.log(`     📸 Foto: NO DISPONIBLE`);
-        }
-        if (item.photo_urls && item.photo_urls.length > 1) {
-          console.log(`     📸 Total fotos: ${item.photo_urls.length}`);
-        }
+        console.log(`  ${index + 1}. ${item.title} - ${item.price}€ (Fotos: ${item.photo_urls.length})`);
       });
 
       // Limpiar

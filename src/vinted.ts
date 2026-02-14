@@ -123,6 +123,10 @@ export class VintedAPI {
         console.log(`⚠️ No se encontraron cookies en ${config.COOKIE_FILE}. Continuando sin sesión.`);
       }
 
+      // Añadir un retardo aleatorio pequeño para parecer más humano
+      const jitter = Math.floor(Math.random() * 3000) + 1000;
+      await new Promise(resolve => setTimeout(resolve, jitter));
+
       // Navegar a la página con timeout aumentado y reintentos
       const searchUrl = `${this.baseURL}/catalog?search_text=${encodeURIComponent(keyword)}&order=newest_first`;
       console.log(`🔍 Navegando a: ${searchUrl}`);
@@ -136,13 +140,10 @@ export class VintedAPI {
         console.log(`🔄 Intento ${attempts}/${maxAttempts}`);
 
         try {
+          // Usar un timeout más largo y esperar a que la red esté tranquila
           await page.goto(searchUrl, {
             waitUntil: 'networkidle2',
-            timeout: 120000 // 120 segundos
-          });
-          await page.goto(searchUrl, {
-            waitUntil: 'networkidle2',
-            timeout: 120000 // 120 segundos
+            timeout: 60000
           });
 
           // Check for Cloudflare

@@ -435,19 +435,22 @@ export class VintedAPI {
 
       // Extraer items del DOM
       const items = await page.evaluate(() => {
-        // Encontrar el contenedor principal de resultados (evita secciones laterales o de sugerencias)
+        // Selector muy amplio para el contenedor de resultados
         const catalogGrid = document.querySelector('[data-testid="catalog-grid"]') ||
           document.querySelector('.feed-grid') ||
+          document.querySelector('.catalog-content__main-grid') ||
           document.querySelector('.catalog-items') ||
           document.body;
 
-        // Intentar diferentes selectores para los cards de items dentro del grid
+        // Selectores actualizados para cards de Vinted 2024/2025
         const selectors = [
+          '.feed-grid__item',
+          '.new-item-box',
           '[data-testid="item-card"]',
           '.ItemBox_root',
-          '.feed-grid .item',
           '.catalog-item',
-          'article[data-cy="item-card"]'
+          'article[data-cy="item-card"]',
+          '.item-card'
         ];
 
         let itemElements: Element[] = [];
@@ -462,16 +465,16 @@ export class VintedAPI {
           }
         }
 
-        // Si no encontramos nada con selectores específicos, buscar selectores genéricos de cards
+        // Fallback final: cualquier enlace que parezca un producto y tenga imagen
         if (itemElements.length === 0) {
-          itemElements = Array.from(catalogGrid.querySelectorAll('.item-card, .grid-item, .product-card'));
-          foundSelector = 'generic-card';
+          itemElements = Array.from(catalogGrid.querySelectorAll('a[href*="/items/"]:has(img)'));
+          foundSelector = 'a-with-img';
         }
 
         return {
           selector: foundSelector,
           count: itemElements.length,
-          html: catalogGrid.outerHTML.substring(0, 5000)
+          html: catalogGrid.outerHTML.substring(0, 1000)
         };
       });
 
@@ -480,52 +483,81 @@ export class VintedAPI {
 
       // Si no encontramos elementos, devolver array vacío
       if (items.count === 0) {
-        console.log('❌ No se encontraron elementos en el grid catalog');
+        console.log('❌ No se encontraron elementos en el grid');
         return [];
       }
 
       // Extraer datos de los elementos encontrados
       const extractedItems = await page.evaluate((itemSelector) => {
-        const catalogGrid = document.querySelector('[data-testid="catalog-grid"]') ||
+        // Volver a obtener el contenedor lo más amplio posible
+        const root = document.querySelector('[data-testid="catalog-grid"]') ||
           document.querySelector('.feed-grid') ||
-          document.querySelector('.catalog-items') ||
+          document.querySelector('.catalog-content__main-grid') ||
           document.body;
 
-        const elements = Array.from(catalogGrid.querySelectorAll(itemSelector));
+        let elements: any[] = [];
+        if (itemSelector === 'a-with-img') {
+          elements = Array.from(root.querySelectorAll('a[href*="/items/"]:has(img)'));
+        } else {
+          elements = Array.from(root.querySelectorAll(itemSelector));
+        }
+
         const results: any[] = [];
 
         elements.forEach((element: any, index) => {
           try {
-            // VERIFICACIÓN CRUCIAL: ¿Está este elemento dentro de una sección de "Sugeridos" o "Anuncios"?
-            const parentSection = element.closest('section, div[class*="similar"], div[class*="suggested"], div[class*="liked"]');
-            if (parentSection) {
-              const sectionText = parentSection.textContent?.toLowerCase() || '';
-              if (sectionText.includes('people also liked') ||
-                sectionText.includes('suggested') ||
-                sectionText.includes('similar') ||
-                sectionText.includes('ti potrebbero piacere')) {
-                return; // Ignorar recomendaciones
+            // EXCLUSIÓN DE RECOMENDACIONES: Verificar padres hasta 5 niveles
+            let isRecommended = false;
+            let currentParent = element.parentElement;
+            for (let i = 0; i < 5 && currentParent; i++) {
+              const text = currentParent.textContent?.toLowerCase() || '';
+              const classes = currentParent.className.toString().toLowerCase();
+              if (text.includes('people also liked') ||
+                text.includes('suggested') ||
+                text.includes('similar') ||
+                text.includes('ti potrebbero piacere') ||
+                text.includes('suggeriti') ||
+                classes.includes('reco') ||
+                classes.includes('suggested')) {
+                // Solo marcar como recomendado si NO estamos en la primera sección
+                // (Vinted a veces pone el título arriba pero queremos los resultados debajo)
+                // Usamos un heuristic: si hay un h3/h2 de "Similar" cerca del padre
+                const header = currentParent.querySelector('h1, h2, h3, h4');
+                if (header && (header.textContent?.toLowerCase().includes('similar') ||
+                  header.textContent?.toLowerCase().includes('piacere'))) {
+                  isRecommended = true;
+                  break;
+                }
               }
+              currentParent = currentParent.parentElement;
             }
 
-            // Buscar enlace al producto (elemento base para ID y URL)
+            if (isRecommended) return;
+
+            // Buscar enlace al producto
             const link = element.querySelector('a[href*="/items/"]') || (element.tagName === 'A' ? element : null);
             if (!link || !link.href) return;
 
-            // Extraer título - Buscar lo más descriptivo primero
+            // Extraer título - Intentar el atributo 'title' del overlay que suele ser super completo
             let title = '';
-            const titleEl = element.querySelector('[data-testid="item-card-title"]') ||
-              element.querySelector('.item-description__title') ||
-              element.querySelector('img')?.alt ||
-              element.querySelector('a')?.title;
+            const overlay = element.querySelector('.new-item-box__overlay') || element.querySelector('a');
+            if (overlay && overlay.getAttribute('title')) {
+              title = overlay.getAttribute('title').trim();
+            }
 
-            title = (titleEl?.textContent || titleEl?.alt || titleEl?.title || '').trim();
-            if (!title) title = link.textContent?.split('€')[0]?.trim() || '';
+            if (!title) {
+              const titleEl = element.querySelector('[data-testid="item-card-title"]') ||
+                element.querySelector('.new-item-box__title') ||
+                element.querySelector('.item-description__title') ||
+                element.querySelector('img')?.alt;
+              title = (titleEl?.textContent || titleEl?.alt || '').trim();
+            }
 
-            // Extraer precio - Solo dentro del card actual
+            // Extraer precio
             let price = 0;
-            const priceEl = element.querySelector('[data-testid="item-card-price"]') ||
-              element.querySelector('.price, .amount, [data-testid="price"], .cost');
+            const priceEl = element.querySelector('.new-item-box__price') ||
+              element.querySelector('[data-testid="item-card-price"]') ||
+              element.querySelector('.price, .amount, .cost, h3');
 
             if (priceEl) {
               const priceText = priceEl.textContent || '';
@@ -535,14 +567,13 @@ export class VintedAPI {
               }
             }
 
-            // Extraer fotos - ESTRICTAMENTE dentro de este card
+            // Extraer fotos
             const photoUrls: string[] = [];
             const imgs = element.querySelectorAll('img');
 
             imgs.forEach((img: any) => {
               let src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.src;
               if (src && src.length > 20 && !src.includes('base64')) {
-                // Filtrar anuncios/logos (usando la lógica ya implementada)
                 const isAd = src.toLowerCase().match(/(cms|asset|advertising|banner|logo|promo|marketing|avatar|placeholder|vinted\.png|cookie|onetrust)/i);
                 if (!isAd && (src.includes('vinted.net/t/') || src.includes('f800') || src.includes('large'))) {
                   if (src.startsWith('//')) src = 'https:' + src;
@@ -552,17 +583,14 @@ export class VintedAPI {
             });
 
             if (title && price > 0) {
-              // Extraer otros metadatos (marca, talla)
-              const brand = element.querySelector('[data-testid="item-card-brand"]')?.textContent?.trim() || '';
-              const size = element.querySelector('.taglia, .size, [data-testid="item-card-size"]')?.textContent?.trim() || '';
+              const brand = element.querySelector('.new-item-box__title')?.textContent?.trim() ||
+                element.querySelector('[data-testid="item-card-brand"]')?.textContent?.trim() || '';
 
               results.push({
                 id: parseInt(link.href.match(/\/items\/(\d+)/)?.[1] || '0'),
                 title: title,
                 price: price,
-                currency: 'EUR',
                 brand: brand,
-                size: size,
                 url: link.href,
                 photo_url: photoUrls[0] || '',
                 photo_urls: photoUrls,
@@ -570,9 +598,7 @@ export class VintedAPI {
                 created_at: new Date().toISOString()
               });
             }
-          } catch (e) {
-            console.log(`❌ Error procesando ítem Puppeteer ${index}:`, e);
-          }
+          } catch (e) { }
         });
 
         return results;

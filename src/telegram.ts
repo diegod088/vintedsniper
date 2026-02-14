@@ -60,6 +60,7 @@ export class TelegramBot {
 
       if (extraction.location) {
         item.location = extraction.location;
+        console.log(`📍 Ubicación extraída: ${item.location}`);
       }
 
       // 2. Actualizar URLs de imágenes
@@ -86,17 +87,17 @@ export class TelegramBot {
   private getFlagEmoji(location?: string): string {
     if (!location) return '🌍';
     const loc = location.toLowerCase();
-    if (loc.includes('ital')) return '🇮🇹';
-    if (loc.includes('fran') || loc.includes('pari')) return '🇫🇷';
-    if (loc.includes('spag') || loc.includes('esp') || loc.includes('barc') || loc.includes('madr')) return '🇪🇸';
-    if (loc.includes('ola') || loc.includes('nether') || loc.includes('pasi')) return '🇳🇱';
-    if (loc.includes('belg')) return '🇧🇪';
-    if (loc.includes('germ') || loc.includes('alem') || loc.includes('deut')) return '🇩🇪';
-    if (loc.includes('portu')) return '🇵🇹';
+    if (loc.includes('ital') || loc.includes('roma') || loc.includes('milan') || loc.includes('napol')) return '🇮🇹';
+    if (loc.includes('fran') || loc.includes('pari') || loc.includes('lyon') || loc.includes('marse')) return '🇫🇷';
+    if (loc.includes('spag') || loc.includes('esp') || loc.includes('barc') || loc.includes('madr') || loc.includes('valenc')) return '🇪🇸';
+    if (loc.includes('ola') || loc.includes('nether') || loc.includes('pasi') || loc.includes('amster')) return '🇳🇱';
+    if (loc.includes('belg') || loc.includes('brussel')) return '🇧🇪';
+    if (loc.includes('germ') || loc.includes('alem') || loc.includes('deut') || loc.includes('berlin') || loc.includes('munich')) return '🇩🇪';
+    if (loc.includes('portu') || loc.includes('lisbo')) return '🇵🇹';
     if (loc.includes('roam') || loc.includes('roma') || loc.includes('bucu')) return '🇷🇴';
-    if (loc.includes('polon') || loc.includes('polska') || loc.includes('pola')) return '🇵🇱';
-    if (loc.includes('austr')) return '🇦🇹';
-    if (loc.includes('lond') || loc.includes('uk') || loc.includes('unit')) return '🇬🇧';
+    if (loc.includes('polon') || loc.includes('polska') || loc.includes('pola') || loc.includes('warsaw')) return '🇵🇱';
+    if (loc.includes('austr') || loc.includes('vienna')) return '🇦🇹';
+    if (loc.includes('lond') || loc.includes('uk') || loc.includes('unit') || loc.includes('brit')) return '🇬🇧';
     return '📍';
   }
 

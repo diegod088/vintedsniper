@@ -160,7 +160,7 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
       ];
 
       const locationKeywords = [
-        'posizione', 'location', 'lieu', 'ubicación', 'país', 'country'
+        'posizione', 'location', 'lieu', 'ubicación', 'país', 'country', 'pays', 'land', 'paese'
       ];
 
       for (const item of items) {

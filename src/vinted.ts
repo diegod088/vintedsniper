@@ -172,7 +172,8 @@ export class VintedAPI {
             feedback_count: item.user?.feedback_count || 0
           },
           created_at: new Date(item.photo?.high_resolution?.timestamp * 1000 || Date.now()).toISOString(),
-          time_ago: 'Appena postato' // La API no suele dar el string relativo directamente
+          time_ago: 'Appena postato', // La API no suele dar el string relativo directamente
+          location: item.user?.country_title || item.location_title || item.user?.city || ''
         }));
       }
 

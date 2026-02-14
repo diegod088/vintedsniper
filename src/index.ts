@@ -258,7 +258,7 @@ export class SniperBot {
     console.log(isBrandMode ? `🏷️ Marcas (todos los productos): ${config.SEARCH_TERMS.join(', ')}` : `🔤 Palabras clave: ${config.SEARCH_TERMS.join(', ')}`);
     if (!isBrandMode) console.log('💡 Tip: Pon BRANDS=Nike,Adidas,... en .env para buscar por marcas (camisetas, pantalones, etc.)');
     console.log(`💰 Max Price: ${config.MAX_PRICE}€`);
-    console.log(`⏱️ Interval: ${config.POLL_INTERVAL_MS / 1000}s`);
+    console.log(`⏱️ Interval: ${this.sharedState.pollIntervalMs / 1000}s`);
     console.log('');
 
 
@@ -289,6 +289,7 @@ export class SniperBot {
    */
   public updatePollInterval(ms: number): void {
     this.sharedState.pollIntervalMs = ms;
+    config.POLL_INTERVAL_MS = ms; // Mantener config global sincronizada
     const settings = dynamicConfigManager.load();
     settings.POLL_INTERVAL_MS = ms;
     dynamicConfigManager.save(settings);

@@ -2,6 +2,7 @@ import puppeteer from 'puppeteer-extra';
 import { Browser } from 'puppeteer';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import fs from 'fs';
+import axios from 'axios';
 import { config } from './config';
 import { CookieManager } from './cookies';
 import { AdvancedFilter, FilterConfig, FilterResult } from './filters';
@@ -103,7 +104,83 @@ export class VintedAPI {
     }
   }
 
+  private async fetchFromAPI(keyword: string): Promise<VintedItem[]> {
+    try {
+      const cookies = this.cookieManager.load();
+      if (cookies.length === 0) {
+        console.log('⚠️ No hay cookies para la API. Intentando obtenerlas...');
+        return [];
+      }
+
+      const cookieHeader = this.cookieManager.toAxiosHeaders(cookies);
+      const url = `${this.baseURL}/api/v2/catalog/items`;
+
+      console.log(`📡 Consultando API Vinted: ${url}?search_text=${encodeURIComponent(keyword)}`);
+
+      const response = await axios.get(url, {
+        params: {
+          search_text: keyword,
+          order: 'newest_first',
+          per_page: '20'
+        },
+        headers: {
+          'Cookie': cookieHeader,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'x-app-version': '23.0.0' // Versión aproximada para evitar bloqueos
+        },
+        timeout: 10000
+      });
+
+      if (response.data && response.data.items) {
+        console.log(`✅ API retornó ${response.data.items.length} items`);
+
+        return response.data.items.map((item: any) => ({
+          id: item.id,
+          title: item.title,
+          price: parseFloat(item.price?.amount || item.total_item_price?.amount || '0'),
+          currency: item.price?.currency_code || 'EUR',
+          brand: item.brand_title || '',
+          size: item.size_title || '',
+          condition: item.status || '',
+          url: `https://www.vinted.it${item.path || `/items/${item.id}`}`,
+          photo_url: item.photo?.url || '',
+          photo_urls: item.photos?.map((p: any) => p.url) || [],
+          description: item.description || '',
+          seller: {
+            id: item.user?.id || 0,
+            login: item.user?.login || '',
+            business: item.user?.business || false,
+            feedback_reputation: item.user?.feedback_reputation || 0,
+            feedback_count: item.user?.feedback_count || 0
+          },
+          created_at: new Date(item.photo?.high_resolution?.timestamp * 1000 || Date.now()).toISOString(),
+          time_ago: 'Appena postato' // La API no suele dar el string relativo directamente
+        }));
+      }
+
+      return [];
+    } catch (error: any) {
+      console.error(`❌ Error en fetchFromAPI: ${error.message}`);
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        console.error('🛑 API bloqueada o cookies inválidas (401/403)');
+      }
+      return [];
+    }
+  }
+
   public async searchItems(keyword: string): Promise<VintedItem[]> {
+    // 1. Intentar primero con la API (más rápido y evita Cloudflare)
+    try {
+      const apiItems = await this.fetchFromAPI(keyword);
+      if (apiItems.length > 0) {
+        return apiItems;
+      }
+    } catch (apiError) {
+      console.log('⚠️ Error en API, procediendo a fallback de browser...');
+    }
+
+    // 2. Fallback: Puppeteer (solo si la API falla o está bloqueada)
     const browser = await this.getBrowser();
 
     try {

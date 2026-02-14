@@ -115,7 +115,8 @@ export class VintedAPI {
       const cookieHeader = this.cookieManager.toAxiosHeaders(cookies);
       const url = `${this.baseURL}/api/v2/catalog/items`;
 
-      // Intentar extraer el token v_udt si existe para mandarlo como header x-v-udt
+      // Extraer el Bearer token (access_token_web) de las cookies
+      const accessTokenCookie = cookies.find(c => c.name === 'access_token_web');
       const vudtCookie = cookies.find(c => c.name === 'v_udt');
 
       console.log(`📡 Consultando API Vinted (${this.baseURL}): ${url}?search_text=${encodeURIComponent(keyword)}`);
@@ -128,6 +129,10 @@ export class VintedAPI {
         'x-app-version': '23.0.0',
         'x-cross-site-proxy': 'false'
       };
+
+      if (accessTokenCookie) {
+        headers['Authorization'] = `Bearer ${accessTokenCookie.value}`;
+      }
 
       if (vudtCookie) {
         headers['x-v-udt'] = vudtCookie.value;
@@ -180,6 +185,57 @@ export class VintedAPI {
     }
   }
 
+  /**
+   * Intenta obtener items scrapeando el HTML con Axios (más ligero que Puppeteer y menos bloqueado)
+   */
+  private async fetchHTMLViaAxios(keyword: string): Promise<VintedItem[]> {
+    try {
+      const url = `${this.baseURL}/catalog?search_text=${encodeURIComponent(keyword)}&order=newest_first`;
+      const cookies = this.cookieManager.load();
+      const cookieHeader = this.cookieManager.toAxiosHeaders(cookies);
+
+      console.log(`📡 Consultando HTML vía Axios: ${url}`);
+
+      const response = await axios.get(url, {
+        headers: {
+          'Cookie': cookieHeader,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
+        timeout: 15000
+      });
+
+      const html = response.data;
+      if (html.includes('id="challenge-platform"')) {
+        console.error('🛑 Axios HTML detectó Cloudflare Block');
+        return [];
+      }
+
+      // Vinted suele embebed los datos en un JSON dentro de un script tag
+      const jsonMatch = html.match(/<script[^>]+data-js-integrity="([^"]+)"[^>]*>([\s\S]*?)<\/script>/i) ||
+        html.match(/<script[^>]*type="application\/json"[^>]*data-name="z-data-json"[^>]*>([\s\S]*?)<\/script>/i) ||
+        html.match(/<script[^>]*>window\.__INITIAL_STATE__\s*=\s*({[\s\S]*?});<\/script>/i);
+
+      // Si no encontramos el JSON JSON, intentamos un regex más agresivo para los items
+      // (En Vinted .es/.it, los items a veces están en el objeto de 'items' del estado inicial)
+      if (html.includes('item-card')) {
+        console.log('✅ HTML obtenido correctamente (contiene item-card)');
+        // Por simplicidad en este paso, si detectamos que el HTML es válido pero no podemos parsear el JSON complejo,
+        // devolvemos un array vacío para que Puppeteer intente el parseo visual fino como última instancia,
+        // PERO habiendo confirmado que la IP NO está bloqueada para este request.
+        // No obstante, intentemos extraer algo básico.
+      }
+
+      return []; // Devolvemos vacío para forzar fallback o implementar parser ligero después
+    } catch (error: any) {
+      console.error(`❌ Error en fetchHTMLViaAxios: ${error.message}`);
+      return [];
+    }
+  }
+
   public async searchItems(keyword: string): Promise<VintedItem[]> {
     // 1. Intentar primero con la API (más rápido y evita Cloudflare)
     try {
@@ -188,10 +244,20 @@ export class VintedAPI {
         return apiItems;
       }
     } catch (apiError) {
-      console.log('⚠️ Error en API, procediendo a fallback de browser...');
+      console.log('⚠️ Error en API, procediendo a fallback de Axios HTML...');
     }
 
-    // 2. Fallback: Puppeteer (solo si la API falla o está bloqueada)
+    // 2. Intentar con Axios HTML (menos pesado que Puppeteer)
+    try {
+      const axiosItems = await this.fetchHTMLViaAxios(keyword);
+      if (axiosItems.length > 0) {
+        return axiosItems;
+      }
+    } catch (axiosError) {
+      console.log('⚠️ Error en Axios HTML, procediendo a fallback de browser...');
+    }
+
+    // 3. Fallback final: Puppeteer
     const browser = await this.getBrowser();
 
     try {

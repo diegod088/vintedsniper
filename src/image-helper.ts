@@ -12,7 +12,7 @@ puppeteer.use(StealthPlugin());
 // Cache global para almacenar imágenes capturadas durante el scraping
 const globalImageCache = new Map<string, Buffer>();
 
-export async function extractImagesFromItemPage(itemUrl: string, existingBrowser?: Browser): Promise<{ urls: string[], description?: string, timeAgo?: string }> {
+export async function extractImagesFromItemPage(itemUrl: string, existingBrowser?: Browser): Promise<{ urls: string[], description?: string, timeAgo?: string, location?: string }> {
   const browser = existingBrowser || await puppeteer.launch({
     headless: 'new' as any,
     args: [
@@ -31,6 +31,7 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
   let imageUrls: string[] = [];
   let description: string | undefined = undefined;
   let timeAgo: string | undefined = undefined;
+  let location: string | undefined = undefined;
   let page: Page | null = null;
 
   try {
@@ -39,21 +40,28 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
     await page.setViewport({ width: 1366, height: 768 });
 
     // Cargar cookies si existen
-    // Cargar cookies si existen
     const cookiePath = config.COOKIE_FILE;
     if (fs.existsSync(cookiePath)) {
       try {
         const cookies = JSON.parse(fs.readFileSync(cookiePath, 'utf8'));
-        const sanitizedCookies = cookies.map((c: any) => ({
-          name: c.name,
-          value: c.value,
-          domain: c.domain,
-          path: c.path,
-          expires: c.expires,
-          httpOnly: c.httpOnly,
-          secure: c.secure,
-          sameSite: c.sameSite
-        })).filter((c: any) => c.name && c.value && c.domain);
+        const sanitizedCookies = cookies.map((c: any) => {
+          const pCookie: any = {
+            name: c.name,
+            value: c.value,
+            domain: c.domain,
+            path: c.path || '/',
+            expires: c.expires,
+            httpOnly: c.httpOnly,
+            secure: c.secure
+          };
+          if (c.sameSite) {
+            const ss = c.sameSite.toLowerCase();
+            if (ss === 'strict' || ss === 'lax' || ss === 'none') {
+              pCookie.sameSite = c.sameSite.charAt(0).toUpperCase() + ss.slice(1);
+            }
+          }
+          return pCookie;
+        }).filter((c: any) => c.name && c.value && c.domain);
 
         if (sanitizedCookies.length > 0) {
           await page.setCookie(...sanitizedCookies);
@@ -137,9 +145,11 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
       return undefined;
     });
 
-    // Extraer tiempo de publicación - MEJORADO para evitar "Colore"
-    timeAgo = await page.evaluate(() => {
+    // Extraer tiempo de publicación Y ubicación
+    const details = await page.evaluate(() => {
       const items = Array.from(document.querySelectorAll('.details-list__item'));
+      let extractedTime: string | undefined = undefined;
+      let extractedLocation: string | undefined = undefined;
 
       const timeKeywords = [
         'caricato', 'uploaded', 'aggiunto', 'pubblicato', 'posted', 'publié', 'subido',
@@ -147,6 +157,10 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
         'minutes', 'hours', 'days', 'weeks', 'months', 'years',
         'minutos', 'horas', 'días', 'semanas', 'meses', 'años',
         'hace', 'fa', 'ago', 'il y a'
+      ];
+
+      const locationKeywords = [
+        'posizione', 'location', 'lieu', 'ubicación', 'país', 'country'
       ];
 
       for (const item of items) {
@@ -158,45 +172,35 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
         const title = titleEl.textContent?.toLowerCase() || '';
         const value = valueEl.textContent?.trim() || '';
 
-        // Ignorar campos conocidos que no son tiempo
-        if (['brand', 'marca', 'talla', 'taille', 'size', 'condizioni', 'estado', 'état', 'colore', 'color', 'couleur', 'posizione', 'location'].includes(title)) {
+        // Buscar Ubicación
+        if (locationKeywords.some(k => title.includes(k))) {
+          extractedLocation = value;
           continue;
         }
 
-        // Si el título indica carga o si el valor contiene palabras de tiempo
+        // Buscar Tiempo
         if (title.includes('caricato') || title.includes('uploaded') || title.includes('aggiunto') ||
           title.includes('tempo') || title.includes('time') ||
           timeKeywords.some(k => value.toLowerCase().includes(k))) {
-          return value;
+          if (!extractedTime) extractedTime = value;
         }
       }
 
-      return undefined;
+      return { timeAgo: extractedTime, location: extractedLocation };
     });
 
-    // Captura de primera imagen para caché (opcional, si es rápido)
-    if (imageUrls.length > 0) {
-      const firstImageUrl = imageUrls[0];
-      try {
-        const imageElement = await page.$('.item-photo img') || await page.$('[data-testid="item-photo"] img');
-        if (imageElement) {
-          const buffer = await imageElement.screenshot({ type: 'jpeg', quality: 85 }) as Buffer;
-          if (buffer && buffer.length > 5000) {
-            globalImageCache.set(firstImageUrl, buffer);
-          }
-        }
-      } catch (e) { /* silent */ }
-    }
+    timeAgo = details.timeAgo;
+    location = details.location;
 
     await page.close();
     if (!existingBrowser) await browser.close();
 
-    return { urls: imageUrls, description, timeAgo };
+    return { urls: imageUrls, description, timeAgo, location };
   } catch (error: any) {
     console.error('❌ Error en extractImagesFromItemPage:', error.message);
     if (page) await page.close();
     if (!existingBrowser) await browser.close();
-    return { urls: imageUrls, description, timeAgo };
+    return { urls: imageUrls, description, timeAgo, location };
   }
 }
 

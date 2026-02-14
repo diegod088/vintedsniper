@@ -62,18 +62,27 @@ export class CookieManager {
   }
 
   public toPuppeteerCookies(cookies: Cookie[]): any[] {
-    const currentDomain = new URL(config.VINTED_BASE_URL).hostname.replace('www', '');
-    return cookies.map(c => ({
-      name: c.name,
-      value: c.value,
-      // Si el dominio de la cookie es .vinted.it y estamos en .vinted.es, lo adaptamos
-      domain: c.domain?.includes('vinted') ? currentDomain : c.domain,
-      path: c.path || '/',
-      expires: c.expires || -1,
-      httpOnly: c.httpOnly || false,
-      secure: c.secure || true,
-      sameSite: c.sameSite || 'Lax'
-    }));
+    return cookies.map(c => {
+      const pCookie: any = {
+        name: c.name,
+        value: c.value,
+        domain: c.domain,
+        path: c.path,
+        expires: c.expires,
+        httpOnly: c.httpOnly,
+        secure: c.secure
+      };
+
+      // Sanitize sameSite
+      if (c.sameSite) {
+        const ss = c.sameSite.toLowerCase();
+        if (ss === 'strict' || ss === 'lax' || ss === 'none') {
+          pCookie.sameSite = c.sameSite.charAt(0).toUpperCase() + ss.slice(1);
+        }
+      }
+
+      return pCookie;
+    });
   }
 }
 

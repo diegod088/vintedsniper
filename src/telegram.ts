@@ -58,6 +58,10 @@ export class TelegramBot {
         console.log(`✅ Item pasa filtro de antigüedad: ${extraction.timeAgo}`);
       }
 
+      if (extraction.location) {
+        item.location = extraction.location;
+      }
+
       // 2. Actualizar URLs de imágenes
       if (extraction.urls && extraction.urls.length > 0) {
         item.photo_urls = extraction.urls;
@@ -71,6 +75,7 @@ export class TelegramBot {
       } else {
         await this.sendSinglePhoto(item, caption, existingBrowser);
       }
+      console.log('✅ Notificación enviada con detalles extraídos');
       return true;
     } catch (error: any) {
       console.error('❌ Error en sendItemNotification:', error.message);
@@ -78,75 +83,107 @@ export class TelegramBot {
     }
   }
 
-  private formatCaption(item: VintedItem): string {
-    const title = item.title.length > 50 ? item.title.substring(0, 50) + '...' : item.title;
-    const price = item.price ? `€${item.price}` : 'N/A';
-    const brand = item.brand || 'N/A';
-    const size = item.size || 'N/A';
-    const condition = item.condition || 'N/A';
-    const url = item.url || '';
-    const description = item.description ? `\n\n📝 *Descrizione:* \n${item.description.substring(0, 500)}${item.description.length > 500 ? '...' : ''}` : '';
+  private getFlagEmoji(location?: string): string {
+    if (!location) return '🌍';
+    const loc = location.toLowerCase();
+    if (loc.includes('ital')) return '🇮🇹';
+    if (loc.includes('fran') || loc.includes('pari')) return '🇫🇷';
+    if (loc.includes('spag') || loc.includes('esp') || loc.includes('barc') || loc.includes('madr')) return '🇪🇸';
+    if (loc.includes('ola') || loc.includes('nether') || loc.includes('pasi')) return '🇳🇱';
+    if (loc.includes('belg')) return '🇧🇪';
+    if (loc.includes('germ') || loc.includes('alem') || loc.includes('deut')) return '🇩🇪';
+    if (loc.includes('portu')) return '🇵🇹';
+    if (loc.includes('roam') || loc.includes('roma') || loc.includes('bucu')) return '🇷🇴';
+    if (loc.includes('polon') || loc.includes('polska') || loc.includes('pola')) return '🇵🇱';
+    if (loc.includes('austr')) return '🇦🇹';
+    if (loc.includes('lond') || loc.includes('uk') || loc.includes('unit')) return '🇬🇧';
+    return '📍';
+  }
 
-    return `🎯 *${title}*\n` +
-      `💰 *Prezzo:* ${price}\n` +
-      `🏷️ *Marca:* ${brand}\n` +
-      `📏 *Taglia:* ${size}\n` +
-      `✨ *Condizione:* ${condition}` +
-      `${description}\n\n` +
-      `🔗 [Vedi su Vinted](${url})`;
+  private formatCaption(item: VintedItem): string {
+    const flag = this.getFlagEmoji(item.location);
+    const brand = item.brand ? `*${item.brand}*` : 'No brand';
+    const size = item.size ? ` - ${item.size}` : '';
+    const condition = item.condition ? `\n✨ *Condizione:* ${item.condition}` : '';
+    const location = item.location ? `\n${flag} *Paese:* ${item.location}` : '';
+    const time = item.time_ago ? `\n🕒 *Caricato:* ${item.time_ago}` : '';
+
+    // Descripción truncada si es muy larga para evitar problemas con Telegram
+    let description = '';
+    if (item.description) {
+      const cleanDesc = item.description.replace(/[_*`[\]()]/g, ''); // Evitar rotura de Markdown
+      description = `\n\n📝 *Descrizione:*\n${cleanDesc.substring(0, 500)}${cleanDesc.length > 500 ? '...' : ''}`;
+    }
+
+    return `🔥 ${brand}${size}\n💰 *Prezzo:* ${item.price}${item.currency}\n${condition}${location}${time}${description}\n\n[Guarda su Vinted](${item.url})`;
   }
 
   private async sendMultiplePhotos(item: VintedItem, caption: string, existingBrowser?: Browser): Promise<void> {
-    try {
-      const maxPhotos = Math.min(item.photo_urls!.length, 10);
-      const buffers: Buffer[] = [];
+    let retryCount = 0;
+    const maxRetries = 2;
 
-      console.log(`📸 Preparando álbum de ${maxPhotos} fotos...`);
+    const attemptSend = async () => {
+      try {
+        const maxPhotos = Math.min(item.photo_urls!.length, 10);
+        const buffers: Buffer[] = [];
 
-      for (let i = 0; i < maxPhotos; i++) {
-        try {
-          const buffer = await downloadImageWithAllMethods(item.photo_urls![i], existingBrowser);
-          if (buffer && buffer.length > 1000) {
-            buffers.push(buffer);
+        console.log(`📸 Preparando álbum de ${maxPhotos} fotos...`);
+
+        for (let i = 0; i < maxPhotos; i++) {
+          try {
+            const buffer = await downloadImageWithAllMethods(item.photo_urls![i], existingBrowser);
+            if (buffer && buffer.length > 1000) {
+              buffers.push(buffer);
+            }
+          } catch (err) {
+            console.error(`⚠️ Error descargando foto ${i + 1} para el álbum`);
           }
-        } catch (err) {
-          console.error(`⚠️ Error descargando foto ${i + 1} para el álbum`);
         }
+
+        if (buffers.length === 0) {
+          console.log('⚠️ No se pudo descargar ninguna foto, intentando single photo fallback.');
+          await this.sendSinglePhoto(item, caption, existingBrowser);
+          return;
+        }
+
+        const formData = new FormData();
+        const mediaGroup = buffers.map((buffer, i) => {
+          const attachmentName = `photo${i}.jpg`;
+          formData.append(attachmentName, buffer, { filename: attachmentName, contentType: 'image/jpeg' });
+
+          return {
+            type: 'photo',
+            media: `attach://${attachmentName}`,
+            caption: i === 0 ? caption : undefined,
+            parse_mode: i === 0 ? 'Markdown' : undefined
+          };
+        });
+
+        formData.append('media', JSON.stringify(mediaGroup));
+
+        await axios.post(`${this.baseURL}/sendMediaGroup`, formData, {
+          params: { chat_id: this.chatId },
+          headers: formData.getHeaders(),
+          timeout: 60000
+        });
+
+        console.log(`✅ Álbum de ${mediaGroup.length} fotos enviado con éxito`);
+      } catch (error: any) {
+        if (error.response?.status === 429 && retryCount < maxRetries) {
+          const retryAfter = (error.response.data?.parameters?.retry_after || 5) + 2;
+          console.warn(`⚠️ Telegram Rate Limit (429). Esperando ${retryAfter}s para reintentar...`);
+          retryCount++;
+          await new Promise(r => setTimeout(r, retryAfter * 1000));
+          return await attemptSend();
+        }
+
+        console.error('❌ Error enviando álbum de fotos:', error.message);
+        // fallback a una sola foto si falla el álbum
+        await this.sendSinglePhoto(item, caption, existingBrowser).catch(() => { });
       }
+    };
 
-      if (buffers.length === 0) {
-        console.log('⚠️ No se pudo descargar ninguna foto, intentando single photo fallback.');
-        await this.sendSinglePhoto(item, caption, existingBrowser);
-        return;
-      }
-
-      const formData = new FormData();
-      const mediaGroup = buffers.map((buffer, i) => {
-        const attachmentName = `photo${i}.jpg`;
-        formData.append(attachmentName, buffer, { filename: attachmentName, contentType: 'image/jpeg' });
-
-        return {
-          type: 'photo',
-          media: `attach://${attachmentName}`,
-          caption: i === 0 ? caption : undefined,
-          parse_mode: i === 0 ? 'Markdown' : undefined
-        };
-      });
-
-      formData.append('media', JSON.stringify(mediaGroup));
-
-      await axios.post(`${this.baseURL}/sendMediaGroup`, formData, {
-        params: { chat_id: this.chatId },
-        headers: formData.getHeaders(),
-        timeout: 60000
-      });
-
-      console.log(`✅ Álbum de ${mediaGroup.length} fotos enviado con éxito`);
-    } catch (error: any) {
-      console.error('❌ Error enviando álbum de fotos:', error.message);
-      // fallback a una sola foto si falla el álbum
-      await this.sendSinglePhoto(item, caption, existingBrowser).catch(() => { });
-    }
+    await attemptSend();
   }
 
   private async sendSinglePhoto(item: VintedItem, caption: string, existingBrowser?: Browser): Promise<void> {

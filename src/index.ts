@@ -160,6 +160,8 @@ export class SniperBot {
       // Procesar items nuevos
       let newItemsCount = 0;
       for (const item of filtered) {
+        // Pequeño retardo entre ítems para no saturar Telegram
+        await this.sleep(2000);
         if (this.isNewItem(item.id.toString())) {
           newItemsCount++;
           logger.info(`Procesando nuevo item`, {

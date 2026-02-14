@@ -32,6 +32,7 @@ export interface VintedItem {
   };
   created_at: string;
   time_ago?: string; // "5 minuti fa", etc.
+  location?: string; // "Italia", "Francia", etc.
 }
 
 export class VintedAPI {

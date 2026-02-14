@@ -91,7 +91,8 @@ RUN mkdir -p cookies logs data && chmod 777 cookies logs data
 
 # Run as non-root user
 RUN groupadd -r botuser && useradd -r -g botuser -G audio,video botuser \
-    && chown -R botuser:botuser /app
+    && chown -R botuser:botuser /app \
+    && chown -R botuser:botuser /app/cookies /app/logs /app/data
 
 USER botuser
 

@@ -142,7 +142,7 @@ export class TelegramBot {
       console.log(`✅ Se procesaron ${mediaGroup.length} fotos para el item`);
     } catch (error: any) {
       console.error('❌ Error enviando múltiples fotos:', error.message);
-      await this.sendMessage(caption);
+      throw new Error(`No se pudieron enviar fotos: ${error.message}`);
     }
   }
 
@@ -177,12 +177,12 @@ export class TelegramBot {
         }
       }
 
-      // Fallback a solo texto si todo falla
-      console.log('⚠️ No se pudo obtener imagen, enviando solo texto...');
-      await this.sendMessage(caption);
+      // NO enviar si no hay imagen
+      console.log('❌ No se pudo obtener imagen, OMITIENDO item (sin foto = sin notificación)');
+      throw new Error('No se pudo obtener ninguna imagen para el item');
     } catch (error: any) {
       console.error('❌ Error enviando notificación:', error.message);
-      await this.sendMessage(caption);
+      throw error;
     }
   }
 

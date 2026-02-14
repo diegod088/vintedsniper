@@ -114,6 +114,10 @@ export class WebPanel {
                 if (config.ALLOWED_BRANDS && config.ALLOWED_BRANDS.length === 0) config.ALLOWED_BRANDS = undefined;
             }
 
+            if (pollInterval) {
+                this.bot.updatePollInterval(parseInt(pollInterval));
+            }
+
             // Propagar cambios a los filtros del bot
             const filterUpdates: any = {
                 maxPrice: config.MAX_PRICE,
@@ -128,9 +132,7 @@ export class WebPanel {
                 filterUpdates.sizes = parseListHelper(sizes);
             }
 
-            if (pollInterval) config.POLL_INTERVAL_MS = parseInt(pollInterval);
-
-            // Persistir configuración
+            // Persistir configuración (pollInterval ya se persiste en updatePollInterval)
             dynamicConfigManager.save({
                 SEARCH_TERMS: config.SEARCH_TERMS,
                 MAX_PRICE: config.MAX_PRICE,

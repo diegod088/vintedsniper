@@ -506,22 +506,25 @@ export class VintedAPI {
         elements.forEach((element: any) => {
           try {
             // VERIFICACIÓN DE RECOMENDACIONES (Filtrado Inteligente)
-            // 1. Si está en un contenedor que explícitamente es de recomendaciones
-            const forbiddenSection = element.closest('.user-items, .similar-items, [class*="reco"], [class*="suggested"]');
+            // 1. Si está en un contenedor que explícitamente es de recomendaciones (más preciso)
+            const forbiddenSection = element.closest('.user-items, .similar-items, [class*="similar"], [class*="recomm"]');
             if (forbiddenSection) return;
 
-            // 2. Buscar si hay títulos de sección arriba de este elemento
-            // Subimos hasta encontrar un contenedor que sea hermano de un título
+            // 2. Verificar si el contenedor inmediato tiene un título de "Sugeridos"
+            // Buscamos un header que sea hermano del contenedor de la cuadrícula o del item
             let isInsideRecommendation = false;
             let current = element;
-            for (let i = 0; i < 6 && current; i++) {
-              // Buscar hermanos previos que sean títulos
+            // Solo subir 2 niveles para buscar títulos de sección (normalmente h2/h3)
+            for (let i = 0; i < 3 && current; i++) {
               let sibling = current.previousElementSibling;
               while (sibling) {
-                const text = sibling.textContent?.toLowerCase() || '';
-                if (text.includes('suggeriti') || text.includes('piacere') || text.includes('simili') || text.includes('similar')) {
-                  isInsideRecommendation = true;
-                  break;
+                const tag = sibling.tagName;
+                if (tag.match(/^H[1-4]$/)) {
+                  const text = sibling.textContent?.toLowerCase() || '';
+                  if (text.includes('suggeriti') || text.includes('piacere') || text.includes('simili') || text.includes('similar')) {
+                    isInsideRecommendation = true;
+                    break;
+                  }
                 }
                 sibling = sibling.previousElementSibling;
               }

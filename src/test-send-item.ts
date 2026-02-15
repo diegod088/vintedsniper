@@ -22,7 +22,8 @@ async function testSendItem() {
 
         // Buscar items reales
         console.log('🔍 Buscando items en Vinted...\n');
-        const items = await vintedApi.searchItems('nike');
+        const result = await vintedApi.searchItems('nike');
+        const items = result.items;
 
         if (!items || items.length === 0) {
             console.log('❌ No se encontraron items');
@@ -38,17 +39,13 @@ async function testSendItem() {
 
         // Enviar a Telegram
         console.log('📤 Enviando item a Telegram...\n');
-        const browser = await vintedApi.getBrowser();
-        const success = await telegramBot.sendItemNotification(testItem, browser);
+        // El método sendItemNotification ya no requiere browser
+        await telegramBot.sendItemNotification(testItem);
 
-        if (success) {
-            console.log('\n✅ ¡ÉXITO! El item se envió correctamente a Telegram con imágenes');
-            console.log('💡 Revisa tu canal/chat de Telegram para ver el mensaje');
-        } else {
-            console.log('\n❌ Error: El item no se pudo enviar');
-        }
+        console.log('\n✅ ¡ÉXITO! El item se envió correctamente a Telegram con imágenes');
+        console.log('💡 Revisa tu canal/chat de Telegram para ver el mensaje');
 
-        process.exit(success ? 0 : 1);
+        process.exit(0);
 
     } catch (error: any) {
         console.error('\n❌ Error durante la prueba:', error.message);

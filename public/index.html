@@ -266,6 +266,38 @@
                                         class="w-full px-4 py-4 rounded-2xl focus:outline-none transition-all"
                                         placeholder="60">
                                 </div>
+
+                                <!-- Exclude Conditions -->
+                                <div>
+                                    <label
+                                        class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
+                                        Escludi Condizioni
+                                    </label>
+                                    <input type="text" id="excludeConditions"
+                                        class="w-full px-4 py-4 rounded-2xl focus:outline-none transition-all"
+                                        placeholder="Satisfacente, Buone...">
+                                </div>
+
+                                <!-- Auto Buy Toggle -->
+                                <div
+                                    class="md:col-span-2 flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                                    <div class="flex items-center gap-3">
+                                        <div class="p-2 bg-blue-600/20 rounded-lg">
+                                            <i data-lucide="shopping-cart" class="w-5 h-5 text-blue-400"></i>
+                                        </div>
+                                        <div>
+                                            <div class="text-sm font-bold">Auto Buy (Sperimentale)</div>
+                                            <div class="text-[10px] text-slate-500 uppercase">Tenta l'acquisto
+                                                automatico se attivo</div>
+                                        </div>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="autoBuyEnabled" class="sr-only peer">
+                                        <div
+                                            class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600">
+                                        </div>
+                                    </label>
+                                </div>
                             </div>
 
                             <button type="submit"
@@ -367,7 +399,9 @@
             currentSizes: document.getElementById('currentSizes'),
             currentExclude: document.getElementById('currentExclude'),
             currentInterval: document.getElementById('currentInterval'),
-            currentMaxAge: document.getElementById('currentMaxAge')
+            currentMaxAge: document.getElementById('currentMaxAge'),
+            excludeConditions: document.getElementById('excludeConditions'),
+            autoBuyEnabled: document.getElementById('autoBuyEnabled')
         };
 
         // Utility functions
@@ -467,25 +501,39 @@
                 document.getElementById('allowedBrands').value = (Array.isArray(data.allowedBrands) ? data.allowedBrands.join(', ') : data.allowedBrands) || '';
                 document.getElementById('excludeKeywords').value = (Array.isArray(data.excludeKeywords) ? data.excludeKeywords.join(', ') : data.excludeKeywords) || '';
                 document.getElementById('sizes').value = (Array.isArray(data.sizes) ? data.sizes.join(', ') : data.sizes) || '';
+                document.getElementById('excludeConditions').value = (Array.isArray(data.excludeConditions) ? data.excludeConditions.join(', ') : data.excludeConditions) || '';
                 document.getElementById('pollInterval').value = data.pollInterval ? data.pollInterval / 1000 : '';
                 document.getElementById('maxAgeMinutes').value = data.maxAgeMinutes || '';
+                document.getElementById('autoBuyEnabled').checked = data.autoBuyEnabled === true;
             } catch (error) {
                 addLogEntry('Errore config: ' + error.message, 'error');
             }
         }
 
-        async function fetchStats() {
+        async function fetchLogs() {
             try {
-                const response = await fetch('/api/stats');
+                const response = await fetch('/api/logs');
                 const data = await response.json();
-                currentStatus.cache = data.cache;
-                updateStatus();
+                if (data.logs && data.logs.length > 0) {
+                    // Update log feed - Only add new ones (this is simple integration)
+                    // Clear and redraw for simplicity in this sniper dashboard
+                    elements.activityLog.innerHTML = '';
+                    data.logs.forEach(log => {
+                        const type = log.level === 'ERROR' ? 'error' : (log.level === 'WARN' ? 'warning' : 'info');
+                        addLogEntry(log.message, type);
+                    });
+                }
             } catch (error) {
-                // Silently fail stats
+                // Silently fail logs
             }
         }
 
+        async function fetchStats() {
+            // ... (keep existing)
+        }
+
         async function updateConfig(configData) {
+            // ... (keep existing)
             try {
                 const response = await fetch('/api/config', {
                     method: 'POST',
@@ -494,7 +542,7 @@
                 });
 
                 if (response.ok) {
-                    addLogEntry('Configurazione sincronizzata', 'success');
+                    addLogEntry('Configurazione sincronizada', 'success');
                     await fetchConfig();
                 } else {
                     throw new Error('Sync fallito');
@@ -505,30 +553,14 @@
         }
 
         async function controlBot(action) {
-            try {
-                const response = await fetch('/api/control', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action })
-                });
-
-                const data = await response.json();
-                if (data.success) {
-                    addLogEntry(`${action.toUpperCase()} completato`, 'success');
-                    await fetchStatus();
-                } else {
-                    throw new Error(data.error || 'Errore');
-                }
-            } catch (error) {
-                addLogEntry('Errore: ' + error.message, 'error');
-            }
+            // ... (keep existing)
         }
 
         // Event listeners
         elements.pauseBtn.addEventListener('click', () => controlBot('pause'));
         elements.resumeBtn.addEventListener('click', () => controlBot('resume'));
         elements.refreshBtn.addEventListener('click', async () => {
-            await Promise.all([fetchStatus(), fetchConfig(), fetchStats()]);
+            await Promise.all([fetchStatus(), fetchConfig(), fetchStats(), fetchLogs()]);
             addLogEntry('Dati aggiornati');
         });
 
@@ -541,8 +573,10 @@
                 allowedBrands: document.getElementById('allowedBrands').value,
                 excludeKeywords: document.getElementById('excludeKeywords').value,
                 sizes: document.getElementById('sizes').value,
+                excludeConditions: document.getElementById('excludeConditions').value,
                 pollInterval: parseFloat(document.getElementById('pollInterval').value) * 1000,
-                maxAgeMinutes: parseInt(document.getElementById('maxAgeMinutes').value)
+                maxAgeMinutes: parseInt(document.getElementById('maxAgeMinutes').value),
+                autoBuyEnabled: document.getElementById('autoBuyEnabled').checked
             };
 
             await updateConfig(configData);
@@ -551,11 +585,11 @@
         // Initialize
         async function init() {
             lucide.createIcons();
-            await Promise.all([fetchStatus(), fetchConfig(), fetchStats()]);
+            await Promise.all([fetchStatus(), fetchConfig(), fetchStats(), fetchLogs()]);
 
             setInterval(async () => {
-                await Promise.all([fetchStatus(), fetchStats()]);
-            }, 5000);
+                await Promise.all([fetchStatus(), fetchStats(), fetchLogs()]);
+            }, 3000); // 3 seconds refresh for logs
         }
 
         init();

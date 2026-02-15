@@ -20,6 +20,8 @@ export interface Config {
   PANEL_PASSWORD?: string;
   MAX_AGE_MINUTES: number;
   EXCLUDE_KEYWORDS: string[];
+  SIZES: string[];
+  EXCLUDE_CONDITIONS: string[];
 }
 
 function getEnvVar(key: string, defaultValue?: string): string {
@@ -65,14 +67,16 @@ export const config: Config = {
   MAX_PRICE: savedSettings.MAX_PRICE ?? parseFloat(getEnvVar('MAX_PRICE', '40')),
   TOK: getEnvVar('TOK'),
   CHAT_ID: getEnvVar('CHAT_ID'),
-  COOKIE_FILE: path.resolve(getEnvVar('COOKIE_FILE', 'cookies/vinted.json')),
-  POLL_INTERVAL_MS: savedSettings.POLL_INTERVAL_MS ?? 4000,
+  COOKIE_FILE: path.resolve(getEnvVar('COOKIE_FILE', 'data/cookies/vinted.json')),
+  POLL_INTERVAL_MS: savedSettings.POLL_INTERVAL_MS ?? 60000, // Aumentado a 60s para mayor seguridad
   BACKOFF_DELAY_MS: 30000, // 30 segundos en caso de 429
-  VINTED_BASE_URL: process.env.VINTED_BASE_URL || 'https://www.vinted.ro',
+  VINTED_BASE_URL: process.env.VINTED_BASE_URL || 'https://www.vinted.it',
   AUTO_BUY_ENABLED: process.env.AUTO_BUY_ENABLED === 'true',
   PANEL_PASSWORD: process.env.PANEL_PASSWORD,
   MAX_AGE_MINUTES: savedSettings.MAX_AGE_MINUTES ?? parseInt(getEnvVar('MAX_AGE_MINUTES', '60')),
-  EXCLUDE_KEYWORDS: savedSettings.EXCLUDE_KEYWORDS || parseList(process.env.EXCLUDE_KEYWORDS || '')
+  EXCLUDE_KEYWORDS: savedSettings.EXCLUDE_KEYWORDS || parseList(process.env.EXCLUDE_KEYWORDS || ''),
+  SIZES: savedSettings.SIZES || parseList(process.env.SIZES || ''),
+  EXCLUDE_CONDITIONS: (savedSettings as any).EXCLUDE_CONDITIONS || parseList(process.env.EXCLUDE_CONDITIONS || '')
 };
 
 export default config;

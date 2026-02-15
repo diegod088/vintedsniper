@@ -87,13 +87,13 @@ COPY railway-init.sh /app/railway-init.sh
 RUN chmod +x /app/railway-init.sh
 
 # Create necessary directories and set permissions BEFORE creating the user
-RUN mkdir -p /app/cookies /app/logs /app/data /tmp/puppeteer_user_data /tmp/crash_dumps \
-    && chmod -R 777 /app/cookies /app/logs /app/data /tmp/puppeteer_user_data /tmp/crash_dumps
+RUN mkdir -p /app/data/cookies /app/logs /tmp/puppeteer_user_data /tmp/crash_dumps \
+    && chmod -R 777 /app/data /app/logs /tmp/puppeteer_user_data /tmp/crash_dumps
 
 # Run as non-root user
 RUN groupadd -r botuser && useradd -r -g botuser -G audio,video botuser \
     && chown -R botuser:botuser /app \
-    && chown -R botuser:botuser /app/cookies /app/logs /app/data /tmp
+    && chown -R botuser:botuser /app/data /app/logs /tmp
 
 # USER botuser
 

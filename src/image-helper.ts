@@ -91,64 +91,6 @@ export async function extractImagesFromItemPage(itemUrl: string, existingBrowser
       console.log('⚠️ Selector .details-list__item no encontrado, procediendo con extracción rápida...');
     }
 
-    // Extraer TODAS las URLs de imágenes del ítem actual (RESTRINGIDO)
-    imageUrls = await page.evaluate(() => {
-      const urls = new Set<string>();
-
-      // Intentar encontrar el contenedor principal de la galería para evitar fotos de otros ítems
-      const galleryContainer = document.querySelector('.item-photos') ||
-        document.querySelector('[data-testid="item-photos"]') ||
-        document.querySelector('.item-photo') ||
-        document.querySelector('.main-photo') ||
-        document.body;
-
-      // Selectores específicos de la galería (mantenemos los buenos, quitamos los genéricos como .ItemBox)
-      const gallerySelectors = [
-        '.item-photo img', '.item-photos img', '[data-testid="item-photo"] img',
-        '[data-testid="item-photos"] img', '.main-photo img',
-        'img[itemprop="image"]', 'div[class*="gallery"] img'
-      ];
-
-      gallerySelectors.forEach(selector => {
-        galleryContainer.querySelectorAll(selector).forEach((img: any) => {
-          // Intentar obtener la mejor resolución posible
-          let src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.src;
-          if (src && src.length > 20 && !src.includes('base64')) {
-            // VERIFICACIÓN: Ignorar si pertenece a secciones de sugerencias
-            if (img.closest('.user-items, .similar-items, .ItemBox, [class*="reco"]')) {
-              return;
-            }
-
-            const isAd = src.toLowerCase().match(/(cms|asset|advertising|banner|logo|promo|marketing|avatar|placeholder|vinted\.png|cookie|onetrust)/i);
-            const isVintedPhoto = src.includes('vinted.net/t/') || src.includes('f800');
-
-            if (isVintedPhoto && !isAd) {
-              if (src.startsWith('//')) src = 'https:' + src;
-              // Forzar resolución alta si es una miniatura (f800)
-              const highRes = src.replace(/\/t\/\d+_\d+_[^/]+\/\d+x\d+\//, (match: string) => match.replace(/\d+x\d+/, 'f800'));
-              urls.add(highRes);
-            }
-          }
-        });
-      });
-
-      // Si no encontramos nada, buscar imágenes grandes "liberales" pero solo si no están en sugerencias
-      if (urls.size === 0) {
-        document.querySelectorAll('img').forEach((img: any) => {
-          const src = img.getAttribute('data-src') || img.getAttribute('data-lazy') || img.src;
-          if (src && src.length > 20 && !img.closest('.user-items, .similar-items, [class*="reco"]')) {
-            const isAd = src.toLowerCase().match(/(cms|asset|advertising|banner|logo|promo|marketing|avatar|placeholder|vinted\.png|cookie|onetrust)/i);
-            if (!isAd && (img.naturalWidth > 250 || src.includes('f800') || src.includes('large'))) {
-              if (src.startsWith('//')) urls.add('https:' + src);
-              else urls.add(src);
-            }
-          }
-        });
-      }
-
-      return Array.from(urls);
-    });
-
     // Extraer descripción completa
     description = await page.evaluate(() => {
       const selectors = [

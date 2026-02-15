@@ -19,3 +19,5 @@ test_*.txt
 # Railway and Import Secrets
 railway-env.json
 cookies_to_import.json
+browser_data
+*.png

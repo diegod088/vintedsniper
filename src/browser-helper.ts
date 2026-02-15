@@ -28,7 +28,9 @@ export async function handleCookieConsent(page: Page): Promise<void> {
                         if (await element.isIntersectingViewport()) {
                             await element.click();
                             console.log(`✅ Cookies aceptadas usando XPath: ${selector}`);
-                            await page.waitForTimeout(1000); // Esperar a que desaparezca
+                            // @ts-ignore
+                            if (page.waitForTimeout) await page.waitForTimeout(1000);
+                            else await new Promise(r => setTimeout(r, 1000));
                             return;
                         }
                     }
@@ -41,7 +43,9 @@ export async function handleCookieConsent(page: Page): Promise<void> {
                         if (isVisible) {
                             await element.click();
                             console.log(`✅ Cookies aceptadas usando selector: ${selector}`);
-                            await page.waitForTimeout(1000); // Esperar a que desaparezca
+                            // @ts-ignore
+                            if (page.waitForTimeout) await page.waitForTimeout(1000);
+                            else await new Promise(r => setTimeout(r, 1000));
                             return;
                         }
                     }
@@ -56,4 +60,9 @@ export async function handleCookieConsent(page: Page): Promise<void> {
     } catch (error: any) {
         console.log(`⚠️ Error al manejar cookies: ${error.message}`);
     }
+}
+
+// También exportamos launchBrowser por si algún otro archivo lo usa (aunque VintedAPI tiene el suyo)
+export async function launchBrowser(): Promise<void> {
+    console.log('⚠️ launchBrowser en browser-helper.ts es un placeholder. Use handleCookieConsent o el método de VintedAPI.');
 }

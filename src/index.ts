@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { config } from './config';
 import { VintedAPI } from './vinted';
+import { VintedItem } from './types';
 import { TelegramBot } from './telegram';
 import { VintedBuyer } from './buyer';
 import { ItemCache } from './cache';
@@ -12,6 +13,7 @@ import { execSync } from 'child_process';
 import { dynamicConfigManager } from './dynamic-config';
 
 // 🧹 Matar instancias anteriores para evitar conflictos de Telegram (409 Conflict)
+/*
 try {
   const currentPid = process.pid;
   // Buscar procesos ts-node que ejecuten src/index.ts
@@ -41,6 +43,7 @@ try {
     });
   }
 } catch (e) { }
+*/
 
 
 export interface BotSharedState {
@@ -63,13 +66,8 @@ export class SniperBot {
       paused: false,
       pollIntervalMs: config.POLL_INTERVAL_MS
     };
-    const filterConfig = {
-      maxPrice: config.MAX_PRICE,
-      brands: config.ALLOWED_BRANDS,
-      excludeKeywords: ['bambino', 'bambina', 'kids', 'child'],
-      requireImages: true,
-    };
-    this.vintedAPI = new VintedAPI(filterConfig);
+
+    this.vintedAPI = new VintedAPI();
     this.telegram = new TelegramBot();
     this.buyer = new VintedBuyer();
     this.cache = new ItemCache('data/cache.json', 24 * 60 * 60 * 1000); // 24 horas
@@ -118,12 +116,13 @@ export class SniperBot {
 
       // Buscar por cada marca/ término y fusionar resultados (sin duplicados por id)
       const seenIds = new Set<number>();
-      const items: Awaited<ReturnType<VintedAPI['searchItems']>> = [];
+      const items: VintedItem[] = [];
       for (const term of config.SEARCH_TERMS) {
-        const found = await this.vintedAPI.searchItems(term);
-        for (const item of found) {
+        const result = await this.vintedAPI.searchItems(term);
+        for (const item of result.items) {
           if (!seenIds.has(item.id)) {
             seenIds.add(item.id);
+            (item as any).source_html = result.html;
             items.push(item);
           }
         }
@@ -144,7 +143,7 @@ export class SniperBot {
 
       console.log(`📦 Encontrados ${items.length} items`);
 
-      const filtered = this.vintedAPI.filterItems(items, config.SEARCH_TERMS, config.MAX_PRICE);
+      const filtered = this.vintedAPI.filterItems(items);
 
       logger.logSearch(config.SEARCH_TERMS.join(','), items.length, filtered.length);
       console.log(`✅ ${filtered.length} items pasan los filtros`);
@@ -180,13 +179,23 @@ export class SniperBot {
             continue;
           }
 
-          // Enviar notificación a Telegram (reutilizando browser para detalles)
+          // Enviar notificación a Telegram
           try {
-            const sharedBrowser = await this.vintedAPI.getBrowser();
-            const sent = await this.telegram.sendItemNotification(item, sharedBrowser);
-            if (sent) {
-              logger.logTelegramSent(item, true);
+            const html = (item as any).source_html || '';
+            const index = (item as any).original_index ?? 0;
+            const signed = this.vintedAPI.getSignedPhotoUrl(html, index);
+
+            // Actualizar la URL de la foto y la lista de fotos con la versión firmada (alta resolución)
+            if (signed) {
+              item.photo_url = signed;
+              if (item.photo_urls && item.photo_urls.length > 0) {
+                item.photo_urls[0] = signed;
+              }
             }
+
+            // Usar el método completo que formatea caption con descripción, marca, talla y link
+            await this.telegram.sendItemNotification(item);
+            logger.logTelegramSent(item, true);
           } catch (error: any) {
             logger.error(`Error enviando notificación Telegram`, error, 'TELEGRAM');
             logger.logTelegramSent(item, false);
@@ -279,8 +288,13 @@ export class SniperBot {
       }
       await this.searchAndProcess();
 
-      // Esperar antes de la próxima búsqueda
-      await this.sleep(this.sharedState.pollIntervalMs);
+      // Espera inteligente: chequea cada segundo si cambió la configuración o se pausó
+      let slept = 0;
+      while (slept < this.sharedState.pollIntervalMs && this.isRunning) {
+        if (this.sharedState.paused) break; // Si se pausa, salimos para que el bucle principal maneje la pausa
+        await this.sleep(1000);
+        slept += 1000;
+      }
     }
   }
 
@@ -324,9 +338,6 @@ export class SniperBot {
       uptime: process.uptime(),
       memoryUsage: process.memoryUsage()
     }, 'BOT');
-
-    // Cerrar browser de Vinted si está abierto
-    await this.vintedAPI.closeBrowser();
 
     console.log('\n👋 Bot detenido');
   }

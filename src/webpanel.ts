@@ -4,6 +4,7 @@ import path from 'path';
 import { SniperBot, BotSharedState } from './index';
 import { config } from './config';
 import { dynamicConfigManager } from './dynamic-config';
+import { Logger, logger } from './logger';
 
 export class WebPanel {
     private app: express.Application;
@@ -84,13 +85,21 @@ export class WebPanel {
             pollInterval: config.POLL_INTERVAL_MS,
             backoffDelay: config.BACKOFF_DELAY_MS,
             vintedBaseUrl: config.VINTED_BASE_URL,
-            maxAgeMinutes: config.MAX_AGE_MINUTES
+            maxAgeMinutes: config.MAX_AGE_MINUTES,
+            excludeKeywords: config.EXCLUDE_KEYWORDS,
+            sizes: config.SIZES,
+            excludeConditions: config.EXCLUDE_CONDITIONS,
+            autoBuyEnabled: config.AUTO_BUY_ENABLED
         });
     }
 
     private async updateConfig(req: express.Request, res: express.Response) {
         try {
-            const { searchTerms, maxPrice, allowedBrands, pollInterval, excludeKeywords, sizes, maxAgeMinutes } = req.body;
+            const {
+                searchTerms, maxPrice, allowedBrands, pollInterval,
+                excludeKeywords, sizes, maxAgeMinutes,
+                excludeConditions, autoBuyEnabled
+            } = req.body;
 
             const parseListHelper = (val: any) => {
                 if (val === undefined || val === null) return undefined;
@@ -128,20 +137,31 @@ export class WebPanel {
                 config.MAX_AGE_MINUTES = parseInt(String(maxAgeMinutes));
             }
 
+            if (autoBuyEnabled !== undefined) {
+                config.AUTO_BUY_ENABLED = autoBuyEnabled === true;
+            }
+
+            if (excludeKeywords !== undefined) {
+                config.EXCLUDE_KEYWORDS = parseListHelper(excludeKeywords) || [];
+            }
+
+            if (sizes !== undefined) {
+                config.SIZES = parseListHelper(sizes) || [];
+            }
+
+            if (excludeConditions !== undefined) {
+                config.EXCLUDE_CONDITIONS = parseListHelper(excludeConditions) || [];
+            }
+
             // Propagar cambios a los filtros del bot
             const filterUpdates: any = {
                 maxPrice: config.MAX_PRICE,
                 brands: config.ALLOWED_BRANDS,
-                maxAgeMinutes: config.MAX_AGE_MINUTES
+                maxAgeMinutes: config.MAX_AGE_MINUTES,
+                excludeKeywords: config.EXCLUDE_KEYWORDS,
+                sizes: config.SIZES,
+                excludeConditions: config.EXCLUDE_CONDITIONS
             };
-
-            if (excludeKeywords !== undefined) {
-                filterUpdates.excludeKeywords = parseListHelper(excludeKeywords);
-            }
-
-            if (sizes !== undefined) {
-                filterUpdates.sizes = parseListHelper(sizes);
-            }
 
             // Persistir configuración
             dynamicConfigManager.save({
@@ -149,9 +169,11 @@ export class WebPanel {
                 MAX_PRICE: config.MAX_PRICE,
                 ALLOWED_BRANDS: config.ALLOWED_BRANDS,
                 POLL_INTERVAL_MS: config.POLL_INTERVAL_MS,
-                SIZES: filterUpdates.sizes,
+                SIZES: config.SIZES,
                 MAX_AGE_MINUTES: config.MAX_AGE_MINUTES,
-                EXCLUDE_KEYWORDS: filterUpdates.excludeKeywords
+                EXCLUDE_KEYWORDS: config.EXCLUDE_KEYWORDS,
+                EXCLUDE_CONDITIONS: config.EXCLUDE_CONDITIONS,
+                AUTO_BUY_ENABLED: config.AUTO_BUY_ENABLED
             });
 
             // Notificar al bot que aplique los cambios
@@ -160,11 +182,7 @@ export class WebPanel {
             res.json({
                 success: true,
                 config: {
-                    searchTerms: config.SEARCH_TERMS,
-                    maxPrice: config.MAX_PRICE,
-                    allowedBrands: config.ALLOWED_BRANDS,
-                    pollInterval: config.POLL_INTERVAL_MS,
-                    maxAgeMinutes: config.MAX_AGE_MINUTES,
+                    ...config,
                     ...filterUpdates
                 }
             });
@@ -210,9 +228,8 @@ export class WebPanel {
     }
 
     private getLogs(req: express.Request, res: express.Response) {
-        // This would require implementing log storage
         res.json({
-            logs: [],
+            logs: logger.getRecentLogs(),
             timestamp: new Date().toISOString()
         });
     }

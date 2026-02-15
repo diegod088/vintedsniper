@@ -18,6 +18,8 @@ export interface LogEntry {
 
 export class Logger {
   private static instance: Logger;
+  private recentLogs: LogEntry[] = [];
+  private maxBufferSize: number = 50;
   private logFile: string;
   private logLevel: LogLevel;
   private maxFileSize: number;
@@ -76,28 +78,34 @@ export class Logger {
     }
   }
 
-  private formatMessage(level: string, message: string, context?: any, module?: string): string {
+  private formatMessage(level: string, message: string, context?: any, module?: string): LogEntry {
     const timestamp = new Date().toISOString();
-    const entry: LogEntry = {
+    return {
       timestamp,
       level,
       message,
       context,
       module
     };
-    return JSON.stringify(entry);
   }
 
   private writeLog(level: LogLevel, levelStr: string, message: string, context?: any, module?: string): void {
     if (level < this.logLevel) return;
 
-    const formattedMessage = this.formatMessage(levelStr, message, context, module);
-    
+    const entry = this.formatMessage(levelStr, message, context, module);
+    const formattedMessage = JSON.stringify(entry);
+
     // Escribir a consola con colores
     const colorCode = this.getColorCode(level);
     const resetCode = this.resetCode;
     console.log(`${colorCode}[${levelStr}]${resetCode} ${message}`);
-    
+
+    // Agregar al buffer de logs recientes para el panel web
+    this.recentLogs.unshift(entry);
+    if (this.recentLogs.length > this.maxBufferSize) {
+      this.recentLogs.pop();
+    }
+
     // Escribir a archivo
     try {
       this.rotateLog();
@@ -105,6 +113,10 @@ export class Logger {
     } catch (error: any) {
       console.error('❌ Error escribiendo log:', error.message);
     }
+  }
+
+  public getRecentLogs(): LogEntry[] {
+    return [...this.recentLogs];
   }
 
   private getColorCode(level: LogLevel): string {

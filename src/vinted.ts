@@ -245,15 +245,20 @@ export class VintedAPI {
       return { browser: this.browser, page: this.page };
     }
 
-    console.log('🚀 Iniciando nueva sesión de navegador persistente...');
+    console.log('🚀 Iniciando nueva sesión de navegador persistente (Headless)...');
     this.browser = await puppeteer.launch({
-      headless: false,
+      headless: "new",
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu',
         '--disable-blink-features=AutomationControlled',
         '--disable-infobars',
-        '--window-size=1280,800', // Tamaño de ventana más estándar
+        '--window-size=1280,800',
         '--disable-features=IsolateOrigins,site-per-process',
         '--blink-settings=imagesEnabled=true'
       ],
